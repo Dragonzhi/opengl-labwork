@@ -6,25 +6,23 @@
 
 // Traditional fixed-function OpenGL: no core-profile context is requested.
 static bool smokeTest = false;
+GLUquadric* quad;
 static int testResult = 0;
 static float angle = 0.0f; // 旋转角度
 static bool keyA = false, keyD = false;
 
 void display()
 {
-    glClear(GL_COLOR_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
-    glPushMatrix();
-    glRotatef(angle, 0.0f, 0.0f, 1.0f);     // 围绕 X/Y/Z 轴旋转
-    float t = angle * 0.0174533f;
-    glBegin(GL_QUADS);
-        glColor3f(0.5f + 0.5f * sinf(t), 0.5f + 0.5f * sinf(t + 2.094f), 0.5f + 0.5f * sinf(t + 4.189f)); glVertex2f(-0.7f, -0.7f); t += 1.57;
-        glColor3f(0.5f + 0.5f * sinf(t), 0.5f + 0.5f * sinf(t + 2.094f), 0.5f + 0.5f * sinf(t + 4.189f)); glVertex2f(0.7f, -0.7f); t += 1.57;
-        glColor3f(0.5f + 0.5f * sinf(t), 0.5f + 0.5f * sinf(t + 2.094f), 0.5f + 0.5f * sinf(t + 4.189f)); glVertex2f(0.7f, 0.7f); t += 1.57;
-        glColor3f(0.5f + 0.5f * sinf(t), 0.5f + 0.5f * sinf(t + 2.094f), 0.5f + 0.5f * sinf(t + 4.189f)); glVertex2f(-0.7f, 0.7f);
-    glEnd();
-    glPopMatrix();
+    
+    gluLookAt(0.0f, 2.0f, 8.0f,
+              0.0f, 0.0f, 0.0f,
+              0.0f, 1.0f, 0.0f);
+    glColor3f(0.9f, 0.8f, 0.2f);
+    gluSphere(quad, 1.0f, 24, 12);
+
     if (smokeTest) {
         unsigned char pixel[3] = {};
         glReadBuffer(GL_BACK);
@@ -48,8 +46,7 @@ void reshape(int width, int height)
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
     const double aspect = static_cast<double>(width) / height;
-    if (aspect >= 1.0) gluOrtho2D(-aspect, aspect, -1.0, 1.0);
-    else gluOrtho2D(-1.0, 1.0, -1.0/aspect, 1.0/aspect);
+    gluPerspective(45.0, aspect, 0.1, 100.0);
     glMatrixMode(GL_MODELVIEW);
 }
 
@@ -80,9 +77,15 @@ int main(int argc, char** argv)
     smokeTest = argc > 1 && std::strcmp(argv[1], "--smoke-test") == 0;
     if (smokeTest) argc = 1;
     glutInit(&argc, argv);
-    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
+    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
     glutInitWindowSize(800, 600);
     glutCreateWindow("OpenGL Class - freeglut - ESC to exit");
+    
+    quad = gluNewQuadric();
+    gluQuadricDrawStyle(quad, GLU_LINE);
+    gluQuadricNormals(quad, GLU_SMOOTH);
+
+    glEnable(GL_DEPTH_TEST);
     glutSetOption(GLUT_ACTION_ON_WINDOW_CLOSE, GLUT_ACTION_GLUTMAINLOOP_RETURNS);
     std::printf("Vendor:   %s\nRenderer: %s\nVersion:  %s\n",
                 glGetString(GL_VENDOR), glGetString(GL_RENDERER), glGetString(GL_VERSION));
