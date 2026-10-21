@@ -1,0 +1,20 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build OpenGL",
+            "type": "shell",
+            "command": "\"${workspaceFolder}\\..\\build.cmd\"",
+            "options": { "shell": { "executable": "cmd.exe", "args": ["/d", "/c"] } },
+            "group": { "kind": "build", "isDefault": true },
+            "problemMatcher": ["$gcc"]
+        },
+        {
+            "label": "Run OpenGL",
+            "type": "process",
+            "command": "${workspaceFolder}/build/triangle.exe",
+            "dependsOn": "Build OpenGL",
+            "problemMatcher": []
+        }
+    ]
+}

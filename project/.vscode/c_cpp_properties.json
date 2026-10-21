@@ -1,0 +1,12 @@
+{
+    "version": 4,
+    "configurations": [{
+        "name": "Windows-MinGW64",
+        "compilerPath": "${workspaceFolder}/../tools/mingw64/bin/g++.exe",
+        "includePath": ["${workspaceFolder}/src", "${workspaceFolder}/third_party/freeglut/include"],
+        "defines": ["FREEGLUT_STATIC"],
+        "cStandard": "c11",
+        "cppStandard": "c++11",
+        "intelliSenseMode": "windows-gcc-x64"
+    }]
+}

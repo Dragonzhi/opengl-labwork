@@ -1,0 +1,17 @@
+{
+    "version": "0.2.0",
+    "configurations": [{
+        "name": "Debug OpenGL (GDB)",
+        "type": "cppdbg",
+        "request": "launch",
+        "program": "${workspaceFolder}/build/triangle.exe",
+        "args": [],
+        "stopAtEntry": false,
+        "cwd": "${workspaceFolder}",
+        "externalConsole": true,
+        "MIMode": "gdb",
+        "miDebuggerPath": "${workspaceFolder}/../tools/mingw64/bin/gdb.exe",
+        "environment": [{"name": "PATH", "value": "${workspaceFolder}/../tools/mingw64/bin;${env:PATH}"}],
+        "preLaunchTask": "Build OpenGL"
+    }]
+}
