@@ -4,12 +4,129 @@
 #include <cstdlib>
 #include <cmath>
 
-// Traditional fixed-function OpenGL: no core-profile context is requested.
+const float PI = 3.1415926f;
+
 static bool smokeTest = false;
+// GLU 二次曲面的“绘制设置”句柄：它不保存几何，只保存绘制风格（填充/线框）、
+// 法线生成方式、是否生成纹理坐标等状态，供 gluSphere / gluCylinder / gluDisk 共用。
+// 用 gluNewQuadric() 创建，用 gluDeleteQuadric() 释放。
 GLUquadric* quad;
 static int testResult = 0;
 static float angle = 0.0f; // 旋转角度
 static bool keyA = false, keyD = false;
+
+class OrbitEye
+{
+private:
+    float yaw;    // 方位角（度），绕 +Y 轴
+    float pitch;  // 俯仰角（度），相对 XZ 平面
+    float dist;   // 相机到焦点的距离
+
+    // 守住俯仰角不变量：避免视线与 up 向量接近平行
+    static float clampPitch(float value)
+    {
+        const float limit = 85.0f;
+        if (value < -limit) return -limit;
+        if (value > limit) return limit;
+        return value;
+    }
+
+    // 守住方位角不变量：把角度折回 (-180, 180]
+    static float wrapYaw(float value)
+    {
+        if (value > 180.0f) value -= 360.0f;
+        if (value < -180.0f) value += 360.0f;
+        return value;
+    }
+
+public:
+    OrbitEye() : yaw(0.0f), pitch(14.0f), dist(8.25f) {}
+
+    // 参数是角度增量（不是像素），鼠标灵敏度留在回调里换算
+    void orbit(float deltaYawDeg, float deltaPitchDeg)
+    {
+        yaw = wrapYaw(yaw + deltaYawDeg);
+        pitch = clampPitch(pitch + deltaPitchDeg);
+    }
+
+    // factor < 1 拉近，factor > 1 拉远
+    void zoom(float factor)
+    {
+        dist *= factor;
+        if (dist < 2.0f) dist = 2.0f;
+        if (dist > 60.0f) dist = 60.0f;
+    }
+
+    void reset()
+    {
+        yaw = 0.0f;
+        pitch = 14.0f;
+        dist = 8.25f;
+    }
+
+    // 由球坐标算出 eye，再把视图矩阵提交给固定管线
+    void apply() const
+    {
+        const float yawRad = yaw * PI / 180.0f;
+        const float pitchRad = pitch * PI / 180.0f;
+        const float horizontal = dist * std::cos(pitchRad);
+
+        const float eyeX = horizontal * std::sin(yawRad);
+        const float eyeY = dist * std::sin(pitchRad);
+        const float eyeZ = horizontal * std::cos(yawRad);
+
+        gluLookAt(eyeX, eyeY, eyeZ,
+                  0.0f, 0.0f, 0.0f,
+                  0.0f, 1.0f, 0.0f);
+    }
+
+    float yawDeg() const { return yaw; }
+    float pitchDeg() const { return pitch; }
+    float distance() const { return dist; }
+};
+
+class Planet
+{
+public:
+    Planet(float radius, float orbitRadius, float r, float g, float b)
+    : radius(radius), orbitRadius(orbitRadius), orbitAngle(0.0f)
+    {
+        color[0] = r;
+        color[1] = g;
+        color[2] = b;
+    }
+
+    void draw(GLUquadric* quad) const
+    {
+        glPushMatrix();
+        glRotatef(orbitAngle, 0.0f, 1.0f, 0.0f);
+        glTranslatef(orbitRadius, 0.0f, 0.0f);
+        glColor3fv(color);
+        gluSphere(quad, radius, 16, 8);
+        glPopMatrix();
+    }
+
+private:
+    float radius;
+    float orbitRadius;
+    float orbitAngle;   // 先固定 0，M1 再更新
+    float color[3];
+};
+
+static OrbitEye gEye;
+static Planet Earth(0.3f, 3.0f, 0.0f, 0.5f, 1.0f);
+
+
+static void drawOrbit(float radius, int segments)
+{
+    glColor3f(0.35f, 0.45f, 0.65f);
+    glBegin(GL_LINE_LOOP);
+    for (int i = 0; i < segments; ++i) {
+        const float a = 2.0f * PI * i / segments;
+        glVertex3f(radius * std::cos(a), 0.0f, radius * std::sin(a));
+    }
+    glEnd();
+}
 
 void display()
 {
@@ -17,12 +134,14 @@ void display()
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
     
-    gluLookAt(0.0f, 2.0f, 8.0f,
-              0.0f, 0.0f, 0.0f,
-              0.0f, 1.0f, 0.0f);
+    gEye.apply();
+
     glColor3f(0.9f, 0.8f, 0.2f);
     gluSphere(quad, 1.0f, 24, 12);
 
+    drawOrbit(3.0f, 96);
+    Earth.draw(quad);
+    
     if (smokeTest) {
         unsigned char pixel[3] = {};
         glReadBuffer(GL_BACK);
@@ -82,7 +201,7 @@ int main(int argc, char** argv)
     glutCreateWindow("OpenGL Class - freeglut - ESC to exit");
     
     quad = gluNewQuadric();
-    gluQuadricDrawStyle(quad, GLU_LINE);
+    gluQuadricDrawStyle(quad, GLU_FILL);
     gluQuadricNormals(quad, GLU_SMOOTH);
 
     glEnable(GL_DEPTH_TEST);

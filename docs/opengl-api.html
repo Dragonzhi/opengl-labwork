@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenGL 固定管线 API 速查 · 3D 太阳系实验</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --surface-2: #eef0f3;
+  --text: #17181a;
+  --muted: #5c6169;
+  --border: #d9dde3;
+  --accent: #0b7a4b;
+  --accent-soft: #e3f5ec;
+  --code-bg: #f2f4f7;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --sans: "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #141518;
+    --surface: #1c1e22;
+    --surface-2: #24272c;
+    --text: #e8eaed;
+    --muted: #a3a9b3;
+    --border: #32363d;
+    --accent: #5ee0a8;
+    --accent-soft: #173a2c;
+    --code-bg: #22252a;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.65 var(--sans);
+}
+.wrap { max-width: 1080px; margin: 0 auto; padding: 32px 20px 72px; }
+header { margin-bottom: 24px; }
+h1 { font-size: 26px; line-height: 1.3; margin: 0 0 10px; }
+.sub { color: var(--muted); font-size: 14px; margin: 0 0 16px; }
+.links { display: flex; flex-wrap: wrap; gap: 8px; }
+.links a {
+  display: inline-block; padding: 6px 10px; border: 1px solid var(--border);
+  border-radius: 8px; color: var(--text); text-decoration: none; font-size: 13px;
+  background: var(--surface);
+}
+.links a:hover { border-color: var(--accent); color: var(--accent); }
+.note {
+  margin: 18px 0 0; padding: 12px 14px; border-left: 3px solid var(--accent);
+  background: var(--accent-soft); border-radius: 0 8px 8px 0; font-size: 14px;
+}
+.toolbar {
+  position: sticky; top: 0; z-index: 5; padding: 12px 0;
+  background: var(--bg); border-bottom: 1px solid var(--border);
+}
+input[type="search"] {
+  width: 100%; padding: 11px 14px; font: 15px var(--sans);
+  color: var(--text); background: var(--surface);
+  border: 1px solid var(--border); border-radius: 10px; outline: none;
+}
+input[type="search"]:focus { border-color: var(--accent); }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.chip {
+  padding: 5px 11px; border-radius: 999px; border: 1px solid var(--border);
+  background: var(--surface); color: var(--muted); font: 13px var(--sans);
+  cursor: pointer;
+}
+.chip[aria-pressed="true"] {
+  border-color: var(--accent); color: var(--accent);
+  background: var(--accent-soft);
+}
+.group { margin-top: 34px; }
+.group h2 {
+  font-size: 19px; margin: 0 0 12px; padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
+.entry {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 14px 16px;
+}
+.entry h3 { margin: 0 0 8px; font-size: 16px; line-height: 1.4; }
+.entry h3 .tag {
+  font: 11px var(--mono); color: var(--muted); border: 1px solid var(--border);
+  border-radius: 5px; padding: 1px 5px; margin-left: 6px; vertical-align: 2px;
+}
+.entry pre {
+  margin: 0 0 10px; padding: 10px 12px; background: var(--code-bg);
+  border-radius: 8px; overflow-x: auto; font: 12.5px/1.5 var(--mono);
+}
+.entry p { margin: 0 0 8px; font-size: 14px; }
+.entry p.note-line { color: var(--muted); font-size: 13px; margin-bottom: 10px; }
+.entry a { color: var(--accent); font-size: 13px; text-decoration: none; }
+.entry a:hover { text-decoration: underline; }
+.table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { background: var(--surface-2); font-weight: 600; white-space: nowrap; }
+td code { font-family: var(--mono); font-size: 13px; }
+tr:last-child td { border-bottom: none; }
+.recipes { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+.recipe { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+.recipe h3 { margin: 0 0 8px; font-size: 16px; }
+.recipe pre { margin: 0; padding: 10px 12px; background: var(--code-bg); border-radius: 8px; overflow-x: auto; font: 12.5px/1.7 var(--mono); }
+.empty { display: none; margin-top: 28px; color: var(--muted); }
+footer { margin-top: 44px; color: var(--muted); font-size: 13px; border-top: 1px solid var(--border); padding-top: 16px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>OpenGL 固定管线 API 速查</h1>
+  <p class="sub">freeglut 3.8.0 · OpenGL 2.1 固定管线（opengl32）· GLU 1.3（glu32）· MinGW-w64 / C++11</p>
+  <div class="links">
+    <a href="../project/third_party/freeglut/doc/api.md">本地 freeglut 完整 API（api.md）</a>
+    <a href="https://learn.microsoft.com/en-us/windows/win32/opengl/opengl-reference">Microsoft OpenGL Reference</a>
+    <a href="https://learn.microsoft.com/en-us/windows/win32/opengl/glu-functions">Microsoft GLU Functions</a>
+    <a href="https://registry.khronos.org/OpenGL-Refpages/gl2.1/">Khronos OpenGL 2.1 Refpages</a>
+    <a href="https://freeglut.sourceforge.net/docs/api.php">freeglut API（在线）</a>
+    <a href="https://www.glprogramming.com/red/">Red Book（固定管线）</a>
+  </div>
+  <p class="note">
+    <strong>先分清版本：</strong>你的驱动报告 OpenGL 4.6，但项目代码使用的是 <strong>OpenGL 2.1 固定管线 + GLU</strong>，
+    不是 4.x 核心管线。不要照 docs.gl 或现代教程写 shader / VAO / GLAD，那些和本实验不兼容。
+    函数签名以本机头文件为准：<code>tools/mingw64/x86_64-w64-mingw32/include/GL/gl.h</code>、<code>glu.h</code>；
+    freeglut 头文件在 <code>project/third_party/freeglut/include/GL/</code>。
+  </p>
+</header>
+
+<div class="toolbar">
+  <input id="q" type="search" placeholder="搜索函数名或关键词，例如 glRotatef、纹理、鼠标、深度">
+  <div class="chips" id="chips">
+    <button class="chip" data-cat="all" aria-pressed="true">全部</button>
+    <button class="chip" data-cat="setup">初始化 / 窗口</button>
+    <button class="chip" data-cat="callback">回调 / 事件</button>
+    <button class="chip" data-cat="matrix">矩阵 / 相机</button>
+    <button class="chip" data-cat="primitive">图元 / 几何</button>
+    <button class="chip" data-cat="state">状态 / 测试</button>
+    <button class="chip" data-cat="light">光照 / 材质</button>
+    <button class="chip" data-cat="texture">纹理</button>
+    <button class="chip" data-cat="fog">混合 / 雾</button>
+    <button class="chip" data-cat="quadric">GLU 二次曲面</button>
+    <button class="chip" data-cat="readback">读回 / 调试</button>
+  </div>
+</div>
+
+<main id="entries">
+
+<section class="group" data-group="setup">
+<h2>初始化 / 窗口</h2>
+<div class="grid">
+
+<article class="entry" data-cat="setup">
+<h3>glutInit<span class="tag">freeglut</span></h3>
+<pre>void glutInit(int* argc, char** argv);</pre>
+<p>初始化 GLUT/freeglut，处理命令行参数。必须在任何其他 glut 调用之前执行。</p>
+<p class="note-line">main 的第一句；把 <code>&amp;argc, argv</code> 原样传进去。</p>
+<a href="../project/third_party/freeglut/doc/api.md">本地完整文档</a>
+</article>
+
+<article class="entry" data-cat="setup">
+<h3>glutInitDisplayMode<span class="tag">freeglut</span></h3>
+<pre>void glutInitDisplayMode(unsigned int mode);</pre>
+<p>选择显示模式。常用组合：<code>GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH</code>。</p>
+<p class="note-line">GLUT_DOUBLE=双缓冲，GLUT_RGB=颜色缓冲，GLUT_DEPTH=深度缓冲（Z-buffer 的前提）。</p>
+<a href="../project/third_party/freeglut/doc/api.md">本地完整文档</a>
+</article>
+
+<article class="entry" data-cat="setup">
+<h3>glutInitWindowSize<span class="tag">freeglut</span></h3>
+<pre>void glutInitWindowSize(int width, int height);</pre>
+<p>设置初始窗口大小，本项目为 800×600。</p>
+<a href="../project/third_party/freeglut/doc/api.md">本地完整文档</a>
+</article>
+
+<article class="entry" data-cat="setup">
+<h3>glutCreateWindow<span class="tag">freeglut</span></h3>
+<pre>int glutCreateWindow(const char* title);</pre>
+<p>创建窗口并同时创建 OpenGL 上下文，返回窗口 id。之后才能调用 <code>glEnable</code>、<code>gluNewQuadric</code> 等。</p>
+<a href="../project/third_party/freeglut/doc/api.md">本地完整文档</a>
+</article>
+
+<article class="entry" data-cat="setup">
+<h3>glutMainLoop<span class="tag">freeglut</span></h3>
+<pre>void glutMainLoop(void);</pre>
+<p>进入事件循环，窗口消息、重绘、键盘鼠标都由它分发到已注册的回调。</p>
+<p class="note-line">它不返回；要退出可用 <code>glutLeaveMainLoop()</code>。</p>
+<a href="../project/third_party/freeglut/doc/api.md">本地完整文档</a>
+</article>
+
+<article class="entry" data-cat="setup">
+<h3>glutLeaveMainLoop<span class="tag">freeglut</span></h3>
+<pre>void glutLeaveMainLoop(void);</pre>
+<p>请求退出 <code>glutMainLoop</code>，freeglut 扩展。配合 <code>glutSetOption</code> 可让 MainLoop 正常返回并执行后续代码。</p>
+<a href="../project/third_party/freeglut/doc/api.md">本地完整文档</a>
+</article>
+
+<article class="entry" data-cat="setup">
+<h3>glutSetOption<span class="tag">freeglut</span></h3>
+<pre>void glutSetOption(GLenum what, int value);</pre>
+<p>设置 freeglut 行为。本项目用它让关闭窗口时 MainLoop 返回：</p>
+<p class="note-line"><code>glutSetOption(GLUT_ACTION_ON_WINDOW_CLOSE, GLUT_ACTION_GLUTMAINLOOP_RETURNS);</code></p>
+<a href="../project/third_party/freeglut/doc/api.md">本地完整文档</a>
+</article>
+
+<article class="entry" data-cat="setup">
+<h3>glutGet<span class="tag">freeglut</span></h3>
+<pre>int glutGet(GLenum state);</pre>
+<p>查询窗口/系统状态，例如 <code>GLUT_WINDOW_WIDTH</code>、<code>GLUT_WINDOW_HEIGHT</code>、<code>GLUT_ELAPSED_TIME</code>。</p>
+<p class="note-line">自检里用它取窗口宽高，再算中心像素坐标。</p>
+<a href="../project/third_party/freeglut/doc/api.md">本地完整文档</a>
+</article>
+
+<article class="entry" data-cat="setup">
+<h3>glutSetWindowTitle<span class="tag">freeglut</span></h3>
+<pre>void glutSetWindowTitle(const char* title);</pre>
+<p>修改当前窗口标题，适合显示操作提示或当前模式。</p>
+<a href="../project/third_party/freeglut/doc/api.md">本地完整文档</a>
+</article>
+
+</div>
+</section>
+
+<section class="group" data-group="callback">
+<h2>回调 / 事件</h2>
+<div class="grid">
+
+<article class="entry" data-cat="callback">
+<h3>glutDisplayFunc<span class="tag">freeglut</span></h3>
+<pre>void glutDisplayFunc(void (*func)(void));</pre>
+<p>注册重绘回调。窗口需要重画时（首次显示、<code>glutPostRedisplay</code> 后）被调用，你的 <code>display()</code> 挂在这里。</p>
+<a href="../project/third_party/freeglut/doc/api.md">本地完整文档</a>
+</article>
+
+<article class="entry" data-cat="callback">
+<h3>glutReshapeFunc<span class="tag">freeglut</span></h3>
+<pre>void glutReshapeFunc(void (*func)(int width, int height));</pre>
+<p>窗口尺寸变化时调用。通常在这里设置 <code>glViewport</code> 并重新计算投影矩阵的宽高比。</p>
+<a href="../project/third_party/freeglut/doc/api.md">本地完整文档</a>
+</article>
+
+<article class="entry" data-cat="callback">
+<h3>glutKeyboardFunc<span class="tag">freeglut</span></h3>
+<pre>void glutKeyboardFunc(void (*func)(unsigned char key, int x, int y));</pre>
+<p>普通键（字母、数字、Esc）按下回调。<code>key</code> 是字符码，Esc 为 27。</p>
+<a href="../project/third_party/freeglut/doc/api.md">本地完整文档</a>
+</article>
+
+<article class="entry" data-cat="callback">
+<h3>glutKeyboardUpFunc<span class="tag">freeglut</span></h3>
+<pre>void glutKeyboardUpFunc(void (*func)(unsigned char key, int x, int y));</pre>
+<p>普通键松开回调。做“按住持续移动”时和 <code>glutKeyboardFunc</code> 配对使用。</p>
+<a href="../project/third_party/freeglut/doc/api.md">本地完整文档</a>
+</article>
+
+<article class="entry" data-cat="callback">
+<h3>glutSpecialFunc<span class="tag">freeglut</span></h3>
+<pre>void glutSpecialFunc(void (*func)(int key, int x, int y));</pre>
+<p>功能键回调：方向键、F1–F12、Home/End 等。常量形如 <code>GLUT_KEY_LEFT</code>。</p>
+<a href="../project/third_party/freeglut/doc/api.md">本地完整文档</a>
+</article>
+
+<article class="entry" data-cat="callback">
+<h3>glutMouseFunc<span class="tag">freeglut</span></h3>
+<pre>void glutMouseFunc(void (*func)(int button, int state, int x, int y));</pre>
+<p>鼠标按键回调。<code>button</code>：<code>GLUT_LEFT_BUTTON</code>、<code>GLUT_MIDDLE_BUTTON</code>、<code>GLUT_RIGHT_BUTTON</code>；
+<code>state</code>：<code>GLUT_DOWN</code> / <code>GLUT_UP</code>。</p>
+<p class="note-line">freeglut 的滚轮通常作为 button 3（上滚）和 4（下滚）上报，state 同样是 DOWN。</p>
+<a href="../project/third_party/freeglut/doc/api.md">本地完整文档</a>
+</article>
+
+<article class="entry" data-cat="callback">
+<h3>glutMotionFunc<span class="tag">freeglut</span></h3>
+<pre>void glutMotionFunc(void (*func)(int x, int y));</pre>
+<p>鼠标<strong>按住</strong>拖动时持续回调，参数是窗口坐标（左上角为原点，y 向下）。轨道相机就靠它。</p>
+<a href="../project/third_party/freeglut/doc/api.md">本地完整文档</a>
+</article>
+
+<article class="entry" data-cat="callback">
+<h3>glutPassiveMotionFunc<span class="tag">freeglut</span></h3>
+<pre>void glutPassiveMotionFunc(void (*func)(int x, int y));</pre>
+<p>鼠标<strong>没有按键</strong>时移动的回调。做悬停高亮、HUD 跟随才需要。</p>
+<a href="../project/third_party/freeglut/doc/api.md">本地完整文档</a>
+</article>
+
+<article class="entry" data-cat="callback">
+<h3>glutIdleFunc<span class="tag">freeglut</span></h3>
+<pre>void glutIdleFunc(void (*func)(void));</pre>
+<p>空闲回调：没有事件时反复调用。可在里面推进动画时间，但要注意别盲目每帧重绘占满 CPU。</p>
+<a href="../project/third_party/freeglut/doc/api.md">本地完整文档</a>
+</article>
+
+<article class="entry" data-cat="callback">
+<h3>glutTimerFunc<span class="tag">freeglut</span></h3>
+<pre>void glutTimerFunc(unsigned int msec, void (*func)(int value), int value);</pre>
+<p>定时器：至少 <code>msec</code> 毫秒后调用一次 <code>func(value)</code>。回调里通常更新时间并再次注册自己，形成固定步长动画。</p>
+<a href="../project/third_party/freeglut/doc/api.md">本地完整文档</a>
+</article>
+
+<article class="entry" data-cat="callback">
+<h3>glutPostRedisplay<span class="tag">freeglut</span></h3>
+<pre>void glutPostRedisplay(void);</pre>
+<p>标记当前窗口需要重绘。修改相机/动画状态后必须调用，否则画面不会更新。</p>
+<a href="../project/third_party/freeglut/doc/api.md">本地完整文档</a>
+</article>
+
+<article class="entry" data-cat="callback">
+<h3>glutSwapBuffers<span class="tag">freeglut</span></h3>
+<pre>void glutSwapBuffers(void);</pre>
+<p>双缓冲交换：把后台画好的内容显示到前台。<code>display()</code> 的最后一句。</p>
+<a href="../project/third_party/freeglut/doc/api.md">本地完整文档</a>
+</article>
+
+</div>
+</section>
+
+<section class="group" data-group="matrix">
+<h2>矩阵 / 相机</h2>
+<div class="grid">
+
+<article class="entry" data-cat="matrix">
+<h3>glMatrixMode<span class="tag">GL</span></h3>
+<pre>void glMatrixMode(GLenum mode);</pre>
+<p>选择当前矩阵栈：<code>GL_MODELVIEW</code>（模型+视图）、<code>GL_PROJECTION</code>（投影）、<code>GL_TEXTURE</code>（纹理）。</p>
+<p class="note-line">选错栈是初学者最常见的“画不出来”原因之一。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/glmatrixmode">MS 文档</a>
+</article>
+
+<article class="entry" data-cat="matrix">
+<h3>glLoadIdentity<span class="tag">GL</span></h3>
+<pre>void glLoadIdentity(void);</pre>
+<p>把当前矩阵置为单位阵。每帧 <code>display()</code> 开头重置模型视图矩阵，避免变换累积。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/glloadidentity">MS 文档</a>
+</article>
+
+<article class="entry" data-cat="matrix">
+<h3>glPushMatrix / glPopMatrix<span class="tag">GL</span></h3>
+<pre>void glPushMatrix(void);
+void glPopMatrix(void);</pre>
+<p>矩阵栈压栈/弹栈。做层级变换（太阳 → 地球 → 月球）时，用它们保存父级坐标系，画完子物体后恢复。</p>
+<p class="note-line">这也是“齐次坐标 + 4×4 矩阵统一表示”的固定管线体现。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/glpushmatrix">MS 文档</a>
+</article>
+
+<article class="entry" data-cat="matrix">
+<h3>glTranslatef<span class="tag">GL</span></h3>
+<pre>void glTranslatef(GLfloat x, GLfloat y, GLfloat z);</pre>
+<p>在当前矩阵上叠加平移。注意：平移<strong>不是线性变换</strong>，它会把原点挪走。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/gltranslatef">MS 文档</a>
+</article>
+
+<article class="entry" data-cat="matrix">
+<h3>glRotatef<span class="tag">GL</span></h3>
+<pre>void glRotatef(GLfloat angle, GLfloat x, GLfloat y, GLfloat z);</pre>
+<p>绕轴 <code>(x,y,z)</code> 旋转 <code>angle</code> 度。公转/自转都靠它，顺序不同结果不同。</p>
+<p class="note-line">角度制，不是弧度；旋转是线性变换，原点保持不动。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/glrotatef">MS 文档</a>
+</article>
+
+<article class="entry" data-cat="matrix">
+<h3>glScalef<span class="tag">GL</span></h3>
+<pre>void glScalef(GLfloat x, GLfloat y, GLfloat z);</pre>
+<p>沿三轴缩放。非均匀缩放会破坏法向量长度，光照时通常要 <code>glEnable(GL_NORMALIZE)</code>。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/glscalef">MS 文档</a>
+</article>
+
+<article class="entry" data-cat="matrix">
+<h3>glViewport<span class="tag">GL</span></h3>
+<pre>void glViewport(GLint x, GLint y, GLsizei width, GLsizei height);</pre>
+<p>设置渲染视口（屏幕上的像素矩形），通常在 <code>reshape()</code> 里调用。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/glviewport">MS 文档</a>
+</article>
+
+<article class="entry" data-cat="matrix">
+<h3>gluLookAt<span class="tag">GLU</span></h3>
+<pre>void gluLookAt(GLdouble eyeX, GLdouble eyeY, GLdouble eyeZ,
+               GLdouble centerX, GLdouble centerY, GLdouble centerZ,
+               GLdouble upX, GLdouble upY, GLdouble upZ);</pre>
+<p>定义视图矩阵：把 eye 放到原点、让 center 落在 -z 轴。<strong>相机运动就是改 eye，物体世界坐标不动。</strong></p>
+<p class="note-line">up 通常取 (0,1,0)；up 不能与 eye→center 的视线平行，否则矩阵退化。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/glulookat">MS 文档</a>
+</article>
+
+<article class="entry" data-cat="matrix">
+<h3>gluPerspective<span class="tag">GLU</span></h3>
+<pre>void gluPerspective(GLdouble fovy, GLdouble aspect, GLdouble zNear, GLdouble zFar);</pre>
+<p>建立透视投影矩阵。<code>fovy</code> 是垂直视场角（度），<code>aspect</code> = 宽/高，<code>zNear/zFar</code> 是近远裁剪面。</p>
+<p class="note-line">必须放在 <code>glMatrixMode(GL_PROJECTION)</code> 之后；本项目用 45°、0.1、100。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/gluperspective">MS 文档</a>
+</article>
+
+<article class="entry" data-cat="matrix">
+<h3>gluOrtho2D<span class="tag">GLU</span></h3>
+<pre>void gluOrtho2D(GLdouble left, GLdouble right, GLdouble bottom, GLdouble top);</pre>
+<p>二维正交投影，常用于 HUD/文字。投影后不产生近大远小。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/gluortho2d">MS 文档</a>
+</article>
+
+</div>
+</section>
+
+<section class="group" data-group="primitive">
+<h2>图元 / 几何</h2>
+<div class="grid">
+
+<article class="entry" data-cat="primitive">
+<h3>glBegin / glEnd<span class="tag">GL</span></h3>
+<pre>void glBegin(GLenum mode);
+void glEnd(void);</pre>
+<p>限定时段内顶点组成的图元类型：<code>GL_POINTS</code>、<code>GL_LINES</code>、<code>GL_LINE_LOOP</code>、<code>GL_TRIANGLES</code>、<code>GL_QUADS</code> 等。</p>
+<p class="note-line">固定管线的即时模式；现代核心管线已不支持，但本实验完全可用。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/glbegin">MS 文档</a>
+</article>
+
+<article class="entry" data-cat="primitive">
+<h3>glVertex3f<span class="tag">GL</span></h3>
+<pre>void glVertex3f(GLfloat x, GLfloat y, GLfloat z);</pre>
+<p>提交一个顶点。必须在 <code>glBegin / glEnd</code> 之间调用。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/glvertex3f">MS 文档</a>
+</article>
+
+<article class="entry" data-cat="primitive">
+<h3>glColor3f / glColor4f<span class="tag">GL</span></h3>
+<pre>void glColor3f(GLfloat r, GLfloat g, GLfloat b);
+void glColor4f(GLfloat r, GLfloat g, GLfloat b, GLfloat a);</pre>
+<p>设置当前颜色，后续顶点/图元继承。开启光照后颜色由材质决定，<code>glColor</code> 不再直接控制表面色。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/glcolor3f">MS 文档</a>
+</article>
+
+<article class="entry" data-cat="primitive">
+<h3>glNormal3f<span class="tag">GL</span></h3>
+<pre>void glNormal3f(GLfloat nx, GLfloat ny, GLfloat nz);</pre>
+<p>设置当前法向量。光照计算靠它决定入射角；<strong>没有法向量，光照就是错的</strong>。</p>
+<p class="note-line">gluSphere 会自动生成法线；手写 <code>glBegin</code> 几何体时必须自己给。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/glnormal3f">MS 文档</a>
+</article>
+
+<article class="entry" data-cat="primitive">
+<h3>glTexCoord2f<span class="tag">GL</span></h3>
+<pre>void glTexCoord2f(GLfloat s, GLfloat t);</pre>
+<p>设置当前纹理坐标，范围通常 [0,1]。建模时每个顶点都要给，光栅化阶段再插值。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/gltexcoord2f">MS 文档</a>
+</article>
+
+<article class="entry" data-cat="primitive">
+<h3>glShadeModel<span class="tag">GL</span></h3>
+<pre>void glShadeModel(GLenum mode);</pre>
+<p><code>GL_SMOOTH</code>（Gouraud，法线/颜色插值）或 <code>GL_FLAT</code>（每面一个颜色）。做光滑球用 SMOOTH。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/glshademodel">MS 文档</a>
+</article>
+
+<article class="entry" data-cat="primitive">
+<h3>glutSolidSphere / glutWireSphere<span class="tag">freeglut</span></h3>
+<pre>void glutSolidSphere(GLdouble radius, GLint slices, GLint stacks);
+void glutWireSphere(GLdouble radius, GLint slices, GLint stacks);</pre>
+<p>快速画实心/线框球，自带法线和纹理坐标。<code>slices</code> 是经线数，<code>stacks</code> 是纬线数。</p>
+<p class="note-line">和 <code>gluSphere</code> 的区别：glut 版本不需要 GLUquadric 对象。</p>
+<a href="../project/third_party/freeglut/doc/api.md">本地完整文档</a>
+</article>
+
+<article class="entry" data-cat="primitive">
+<h3>glutSolidCube / glutWireCube<span class="tag">freeglut</span></h3>
+<pre>void glutSolidCube(GLdouble size);
+void glutWireCube(GLdouble size);</pre>
+<p>以原点为中心画边长 <code>size</code> 的立方体。</p>
+<a href="../project/third_party/freeglut/doc/api.md">本地完整文档</a>
+</article>
+
+<article class="entry" data-cat="primitive">
+<h3>glutSolidTorus / glutWireTorus<span class="tag">freeglut</span></h3>
+<pre>void glutSolidTorus(GLdouble innerRadius, GLdouble outerRadius,
+                    GLint sides, GLint rings);</pre>
+<p>画圆环/甜甜圈，可做土星环的几何参考。<code>sides</code> 是截面边数，<code>rings</code> 是环向分段。</p>
+<a href="../project/third_party/freeglut/doc/api.md">本地完整文档</a>
+</article>
+
+<article class="entry" data-cat="primitive">
+<h3>glutSolidTeapot / glutWireTeapot<span class="tag">freeglut</span></h3>
+<pre>void glutSolidTeapot(GLdouble size);
+void glutWireTeapot(GLdouble size);</pre>
+<p>经典茶壶模型，常用于快速验证光照/材质。不属于太阳系内容，但调试光照很方便。</p>
+<a href="../project/third_party/freeglut/doc/api.md">本地完整文档</a>
+</article>
+
+</div>
+</section>
+
+<section class="group" data-group="state">
+<h2>状态 / 测试</h2>
+<div class="grid">
+
+<article class="entry" data-cat="state">
+<h3>glEnable / glDisable<span class="tag">GL</span></h3>
+<pre>void glEnable(GLenum cap);
+void glDisable(GLenum cap);</pre>
+<p>打开/关闭 OpenGL 状态：<code>GL_DEPTH_TEST</code>、<code>GL_CULL_FACE</code>、<code>GL_BLEND</code>、<code>GL_LIGHTING</code>、<code>GL_TEXTURE_2D</code>、<code>GL_FOG</code>、<code>GL_NORMALIZE</code>。</p>
+<p class="note-line">状态是持久的；排查“为什么没效果”时先确认对应开关是否打开。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/glenable">MS 文档</a>
+</article>
+
+<article class="entry" data-cat="state">
+<h3>glClear<span class="tag">GL</span></h3>
+<pre>void glClear(GLbitfield mask);</pre>
+<p>清空缓冲。每帧开头：<code>glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)</code>。</p>
+<p class="note-line">只清颜色不清深度，会导致上一帧的深度残留、遮挡错误。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/glclear">MS 文档</a>
+</article>
+
+<article class="entry" data-cat="state">
+<h3>glClearColor<span class="tag">GL</span></h3>
+<pre>void glClearColor(GLclampf red, GLclampf green, GLclampf blue, GLclampf alpha);</pre>
+<p>设置清屏颜色，取值 0~1。本项目深蓝黑背景 <code>(0.08, 0.10, 0.15, 1.0)</code>。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/glclearcolor">MS 文档</a>
+</article>
+
+<article class="entry" data-cat="state">
+<h3>glDepthFunc<span class="tag">GL</span></h3>
+<pre>void glDepthFunc(GLenum func);</pre>
+<p>设置深度比较函数，默认 <code>GL_LESS</code>（更近才通过）。<code>GL_LEQUAL</code> 常用于共面物体。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/gldepthfunc">MS 文档</a>
+</article>
+
+<article class="entry" data-cat="state">
+<h3>glDepthMask<span class="tag">GL</span></h3>
+<pre>void glDepthMask(GLboolean flag);</pre>
+<p>控制是否写入深度缓冲。透明物体常设为 <code>GL_FALSE</code>，避免挡住后面的透明体。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/gldepthmask">MS 文档</a>
+</article>
+
+<article class="entry" data-cat="state">
+<h3>glCullFace<span class="tag">GL</span></h3>
+<pre>void glCullFace(GLenum mode);</pre>
+<p>背面剔除：<code>GL_BACK</code>（默认）、<code>GL_FRONT</code>、<code>GL_FRONT_AND_BACK</code>。需要先 <code>glEnable(GL_CULL_FACE)</code>。</p>
+<p class="note-line">“法线与视线夹角 &lt; 90° 才可能可见”的工程化手段；反向外壳描边就靠剔除正面。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/glcullface">MS 文档</a>
+</article>
+
+<article class="entry" data-cat="state">
+<h3>glFrontFace<span class="tag">GL</span></h3>
+<pre>void glFrontFace(GLenum mode);</pre>
+<p>指定正面绕序：<code>GL_CCW</code>（逆时针，默认）或 <code>GL_CW</code>。和背面剔除配合。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/glfrontface">MS 文档</a>
+</article>
+
+<article class="entry" data-cat="state">
+<h3>glPolygonMode<span class="tag">GL</span></h3>
+<pre>void glPolygonMode(GLenum face, GLenum mode);</pre>
+<p>多边形绘制模式：<code>GL_FILL</code>、<code>GL_LINE</code>（线框）、<code>GL_POINT</code>。做“W 线框模式”演示用这个。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/glpolygonmode">MS 文档</a>
+</article>
+
+<article class="entry" data-cat="state">
+<h3>glPolygonOffset<span class="tag">GL</span></h3>
+<pre>void glPolygonOffset(GLfloat factor, GLfloat units);</pre>
+<p>给多边形深度加偏移，解决共面 z-fighting。土星环与球体、轨道线与行星表面会用到。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/glpolygonoffset">MS 文档</a>
+</article>
+
+<article class="entry" data-cat="state">
+<h3>glLineWidth / glPointSize<span class="tag">GL</span></h3>
+<pre>void glLineWidth(GLfloat width);
+void glPointSize(GLfloat size);</pre>
+<p>设置线宽/点大小（像素）。不同驱动对线宽上限支持不同，别依赖太粗的线。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/gllinewidth">MS 文档</a>
+</article>
+
+</div>
+</section>
+
+<section class="group" data-group="light">
+<h2>光照 / 材质</h2>
+<div class="grid">
+
+<article class="entry" data-cat="light">
+<h3>glLightfv<span class="tag">GL</span></h3>
+<pre>void glLightfv(GLenum light, GLenum pname, const GLfloat* params);</pre>
+<p>设置光源属性。<code>light</code> 为 <code>GL_LIGHT0</code>…<code>GL_LIGHT7</code>；<code>pname</code> 为
+<code>GL_POSITION</code>、<code>GL_AMBIENT</code>、<code>GL_DIFFUSE</code>、<code>GL_SPECULAR</code>。</p>
+<p class="note-line"><code>GL_POSITION</code> 在设置时会被当前模型视图矩阵变换；太阳光源应在相机变换之前设好，或每帧重新设。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/gllightfv">MS 文档</a>
+</article>
+
+<article class="entry" data-cat="light">
+<h3>glLightModelfv<span class="tag">GL</span></h3>
+<pre>void glLightModelfv(GLenum pname, const GLfloat* params);</pre>
+<p>设置全局光照模型，例如 <code>GL_LIGHT_MODEL_AMBIENT</code>（全局环境光）、<code>GL_LIGHT_MODEL_LOCAL_VIEWER</code>。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/gllightmodelfv">MS 文档</a>
+</article>
+
+<article class="entry" data-cat="light">
+<h3>glMaterialfv<span class="tag">GL</span></h3>
+<pre>void glMaterialfv(GLenum face, GLenum pname, const GLfloat* params);</pre>
+<p>设置材质。<code>face</code> 通常 <code>GL_FRONT_AND_BACK</code>；<code>pname</code> 为
+<code>GL_AMBIENT</code>、<code>GL_DIFFUSE</code>、<code>GL_SPECULAR</code>、<code>GL_EMISSION</code>、<code>GL_SHININESS</code>。</p>
+<p class="note-line">Phong 模型的 4 个材质属性都在这里；太阳用 <code>GL_EMISSION</code> 自发光。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/glmaterialfv">MS 文档</a>
+</article>
+
+<article class="entry" data-cat="light">
+<h3>glColorMaterial<span class="tag">GL</span></h3>
+<pre>void glColorMaterial(GLenum face, GLenum mode);</pre>
+<p>让 <code>glColor</code> 直接驱动某个材质属性（如 <code>GL_AMBIENT_AND_DIFFUSE</code>），简化逐物体材质设置。</p>
+<p class="note-line">需要 <code>glEnable(GL_COLOR_MATERIAL)</code> 才生效。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/glcolormaterial">MS 文档</a>
+</article>
+
+</div>
+</section>
+
+<section class="group" data-group="texture">
+<h2>纹理</h2>
+<div class="grid">
+
+<article class="entry" data-cat="texture">
+<h3>glGenTextures<span class="tag">GL</span></h3>
+<pre>void glGenTextures(GLsizei n, GLuint* textures);</pre>
+<p>生成 n 个纹理对象名。只分配名字，不分配显存；随后要 <code>glBindTexture</code> 并上传图像。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/glgentextures">MS 文档</a>
+</article>
+
+<article class="entry" data-cat="texture">
+<h3>glBindTexture<span class="tag">GL</span></h3>
+<pre>void glBindTexture(GLenum target, GLuint texture);</pre>
+<p>把纹理对象绑定到 <code>GL_TEXTURE_2D</code>，之后的参数设置和上传都作用于它。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/glbindtexture">MS 文档</a>
+</article>
+
+<article class="entry" data-cat="texture">
+<h3>glTexImage2D<span class="tag">GL</span></h3>
+<pre>void glTexImage2D(GLenum target, GLint level, GLint internalFormat,
+                  GLsizei width, GLsizei height, GLint border,
+                  GLenum format, GLenum type, const GLvoid* pixels);</pre>
+<p>上传纹理图像。BMP 常用 <code>internalFormat=GL_RGB</code>、<code>format=GL_RGB</code>、<code>type=GL_UNSIGNED_BYTE</code>。</p>
+<p class="note-line">宽高取 2 的幂（256/512）便于 mipmap；<code>level=0</code> 是原图。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/glteximage2d">MS 文档</a>
+</article>
+
+<article class="entry" data-cat="texture">
+<h3>glTexParameteri<span class="tag">GL</span></h3>
+<pre>void glTexParameteri(GLenum target, GLenum pname, GLint param);</pre>
+<p>设置纹理采样/环绕参数：<code>GL_TEXTURE_MIN_FILTER</code>、<code>GL_TEXTURE_MAG_FILTER</code>、
+<code>GL_TEXTURE_WRAP_S/T</code>。</p>
+<p class="note-line">远处纹理不闪烁的关键：<code>MIN_FILTER = GL_LINEAR_MIPMAP_LINEAR</code>。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/gltexparameteri">MS 文档</a>
+</article>
+
+<article class="entry" data-cat="texture">
+<h3>glTexEnvi<span class="tag">GL</span></h3>
+<pre>void glTexEnvi(GLenum target, GLenum pname, GLint param);</pre>
+<p>设置纹理环境模式，如 <code>GL_TEXTURE_ENV_MODE</code> 为 <code>GL_MODULATE</code>（和光照颜色相乘）或 <code>GL_REPLACE</code>。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/gltexenvi">MS 文档</a>
+</article>
+
+<article class="entry" data-cat="texture">
+<h3>glDeleteTextures<span class="tag">GL</span></h3>
+<pre>void glDeleteTextures(GLsizei n, const GLuint* textures);</pre>
+<p>删除纹理对象，释放显存。程序退出前清理。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/gldeletetextures">MS 文档</a>
+</article>
+
+</div>
+</section>
+
+<section class="group" data-group="fog">
+<h2>混合 / 雾</h2>
+<div class="grid">
+
+<article class="entry" data-cat="fog">
+<h3>glBlendFunc<span class="tag">GL</span></h3>
+<pre>void glBlendFunc(GLenum sfactor, GLenum dfactor);</pre>
+<p>设置混合因子。普通透明：<code>GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA</code>；发光叠加：<code>GL_SRC_ALPHA, GL_ONE</code>。</p>
+<p class="note-line">需要 <code>glEnable(GL_BLEND)</code>；透明物体要按相机距离从远到近绘制。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/glblendfunc">MS 文档</a>
+</article>
+
+<article class="entry" data-cat="fog">
+<h3>glFogf / glFogfv<span class="tag">GL</span></h3>
+<pre>void glFogf(GLenum pname, GLfloat param);
+void glFogfv(GLenum pname, const GLfloat* params);</pre>
+<p>设置雾参数：<code>GL_FOG_MODE</code>、<code>GL_FOG_START/END</code>、<code>GL_FOG_DENSITY</code>、<code>GL_FOG_COLOR</code>。</p>
+<p class="note-line">需要 <code>glEnable(GL_FOG)</code>；雾色通常设成背景色，远景才会自然融入。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/glfogf">MS 文档</a>
+</article>
+
+<article class="entry" data-cat="fog">
+<h3>glFogi<span class="tag">GL</span></h3>
+<pre>void glFogi(GLenum pname, GLint param);</pre>
+<p>整数版雾参数设置，常用于 <code>glFogi(GL_FOG_MODE, GL_LINEAR)</code> 或 <code>GL_EXP</code>、<code>GL_EXP2</code>。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/glfogi">MS 文档</a>
+</article>
+
+</div>
+</section>
+
+<section class="group" data-group="quadric">
+<h2>GLU 二次曲面</h2>
+<div class="grid">
+
+<article class="entry" data-cat="quadric">
+<h3>gluNewQuadric<span class="tag">GLU</span></h3>
+<pre>GLUquadric* gluNewQuadric(void);</pre>
+<p>创建一个二次曲面对象，保存绘制风格、法线、纹理坐标等设置。程序里创建一次即可。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/glunewquadric">MS 文档</a>
+</article>
+
+<article class="entry" data-cat="quadric">
+<h3>gluDeleteQuadric<span class="tag">GLU</span></h3>
+<pre>void gluDeleteQuadric(GLUquadric* quad);</pre>
+<p>销毁二次曲面对象。退出前调用；不调用不会崩，但属于资源泄漏。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/gludeletequadric">MS 文档</a>
+</article>
+
+<article class="entry" data-cat="quadric">
+<h3>gluQuadricDrawStyle<span class="tag">GLU</span></h3>
+<pre>void gluQuadricDrawStyle(GLUquadric* quad, GLenum draw);</pre>
+<p>设置绘制风格：<code>GLU_FILL</code>（实心）、<code>GLU_LINE</code>（线框）、<code>GLU_POINT</code>、<code>GLU_SILHOUETTE</code>。</p>
+<p class="note-line">自检读中心像素时用 <code>GLU_FILL</code>，否则线框球中心是背景色。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/gluquadricdrawstyle">MS 文档</a>
+</article>
+
+<article class="entry" data-cat="quadric">
+<h3>gluQuadricNormals<span class="tag">GLU</span></h3>
+<pre>void gluQuadricNormals(GLUquadric* quad, GLenum normal);</pre>
+<p>设置法线生成方式：<code>GLU_SMOOTH</code>（每顶点法线，配合 <code>GL_SMOOTH</code> 着色）或 <code>GLU_FLAT</code>（面法线）。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/gluquadricnormals">MS 文档</a>
+</article>
+
+<article class="entry" data-cat="quadric">
+<h3>gluQuadricTexture<span class="tag">GLU</span></h3>
+<pre>void gluQuadricTexture(GLUquadric* quad, GLboolean textureCoords);</pre>
+<p>让 gluSphere/gluCylinder 自动生成纹理坐标。开启纹理前设为 <code>GL_TRUE</code>。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/gluquadrictexture">MS 文档</a>
+</article>
+
+<article class="entry" data-cat="quadric">
+<h3>gluSphere<span class="tag">GLU</span></h3>
+<pre>void gluSphere(GLUquadric* quad, GLdouble radius, GLint slices, GLint stacks);</pre>
+<p>画球体。<code>slices</code> 是经线分段，<code>stacks</code> 是纬线分段；本项目控制在 24×12 或 32×32 以内。</p>
+<p class="note-line">UV 参数化在极点会拉伸，这是球面不可展导致的固有畸变。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/glusphere">MS 文档</a>
+</article>
+
+<article class="entry" data-cat="quadric">
+<h3>gluCylinder<span class="tag">GLU</span></h3>
+<pre>void gluCylinder(GLUquadric* quad, GLdouble baseRadius, GLdouble topRadius,
+                 GLdouble height, GLint slices, GLint stacks);</pre>
+<p>画圆柱/圆台。可用于轨道支架、光柱；<code>topRadius=0</code> 时变成圆锥。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/glucylinder">MS 文档</a>
+</article>
+
+<article class="entry" data-cat="quadric">
+<h3>gluDisk / gluPartialDisk<span class="tag">GLU</span></h3>
+<pre>void gluDisk(GLUquadric* quad, GLdouble innerRadius, GLdouble outerRadius,
+             GLint slices, GLint loops);
+void gluPartialDisk(GLUquadric* quad, GLdouble innerRadius, GLdouble outerRadius,
+                    GLint slices, GLint loops, GLdouble startAngle, GLdouble sweepAngle);</pre>
+<p>画圆盘/扇形圆环，可做轨道线、土星环的平面几何。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/gludisk">MS 文档</a>
+</article>
+
+</div>
+</section>
+
+<section class="group" data-group="readback">
+<h2>读回 / 调试</h2>
+<div class="grid">
+
+<article class="entry" data-cat="readback">
+<h3>glReadPixels<span class="tag">GL</span></h3>
+<pre>void glReadPixels(GLint x, GLint y, GLsizei width, GLsizei height,
+                  GLenum format, GLenum type, GLvoid* pixels);</pre>
+<p>从帧缓冲读像素。自检用它读窗口中心 1×1 像素，判断是否真的画出了东西。</p>
+<p class="note-line">读的是当前 <code>glReadBuffer</code> 指定的缓冲；双缓冲下通常是 <code>GL_BACK</code>。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/glreadpixels">MS 文档</a>
+</article>
+
+<article class="entry" data-cat="readback">
+<h3>glReadBuffer<span class="tag">GL</span></h3>
+<pre>void glReadBuffer(GLenum mode);</pre>
+<p>选择 <code>glReadPixels</code> 读取的缓冲：<code>GL_FRONT</code>、<code>GL_BACK</code>、<code>GL_LEFT</code> 等。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/glreadbuffer">MS 文档</a>
+</article>
+
+<article class="entry" data-cat="readback">
+<h3>glGetError<span class="tag">GL</span></h3>
+<pre>GLenum glGetError(void);</pre>
+<p>取出并清除一个错误码；无错误返回 <code>GL_NO_ERROR</code>。自检里用它确认渲染调用没出错。</p>
+<p class="note-line">错误会累积，排查时应在可疑调用后立刻查一次。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/glgeterror">MS 文档</a>
+</article>
+
+<article class="entry" data-cat="readback">
+<h3>glGetString<span class="tag">GL</span></h3>
+<pre>const GLubyte* glGetString(GLenum name);</pre>
+<p>查询驱动信息：<code>GL_VENDOR</code>、<code>GL_RENDERER</code>、<code>GL_VERSION</code>、<code>GL_EXTENSIONS</code>。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/glgetstring">MS 文档</a>
+</article>
+
+<article class="entry" data-cat="readback">
+<h3>glGetIntegerv / glGetFloatv<span class="tag">GL</span></h3>
+<pre>void glGetIntegerv(GLenum pname, GLint* params);
+void glGetFloatv(GLenum pname, GLfloat* params);</pre>
+<p>查询 OpenGL 状态，如 <code>GL_VIEWPORT</code>、<code>GL_MATRIX_MODE</code>、<code>GL_MAX_TEXTURE_SIZE</code>。</p>
+<a href="https://learn.microsoft.com/en-us/windows/win32/opengl/glgetintegerv">MS 文档</a>
+</article>
+
+</div>
+</section>
+
+<section class="group">
+<h2>常量速查</h2>
+<div class="table-wrap">
+<table>
+<thead><tr><th>类别</th><th>常用常量</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>清屏 / 缓冲</td><td><code>GL_COLOR_BUFFER_BIT</code> <code>GL_DEPTH_BUFFER_BIT</code> <code>GLUT_DOUBLE</code> <code>GLUT_RGB</code> <code>GLUT_DEPTH</code></td><td>glClear 的掩码；GLUT 显示模式</td></tr>
+<tr><td>矩阵模式</td><td><code>GL_MODELVIEW</code> <code>GL_PROJECTION</code> <code>GL_TEXTURE</code></td><td>glMatrixMode 选择栈</td></tr>
+<tr><td>图元</td><td><code>GL_POINTS</code> <code>GL_LINES</code> <code>GL_LINE_LOOP</code> <code>GL_LINE_STRIP</code> <code>GL_TRIANGLES</code> <code>GL_TRIANGLE_STRIP</code> <code>GL_QUADS</code> <code>GL_QUAD_STRIP</code> <code>GL_POLYGON</code></td><td>glBegin 的参数</td></tr>
+<tr><td>状态开关</td><td><code>GL_DEPTH_TEST</code> <code>GL_CULL_FACE</code> <code>GL_BLEND</code> <code>GL_LIGHTING</code> <code>GL_TEXTURE_2D</code> <code>GL_FOG</code> <code>GL_NORMALIZE</code> <code>GL_COLOR_MATERIAL</code></td><td>glEnable / glDisable</td></tr>
+<tr><td>着色</td><td><code>GL_SMOOTH</code> <code>GL_FLAT</code></td><td>Gouraud 插值 / 面法线</td></tr>
+<tr><td>深度比较</td><td><code>GL_LESS</code> <code>GL_LEQUAL</code> <code>GL_ALWAYS</code></td><td>glDepthFunc</td></tr>
+<tr><td>面 / 绕序</td><td><code>GL_FRONT</code> <code>GL_BACK</code> <code>GL_FRONT_AND_BACK</code> <code>GL_CCW</code> <code>GL_CW</code></td><td>glCullFace / glFrontFace</td></tr>
+<tr><td>混合</td><td><code>GL_SRC_ALPHA</code> <code>GL_ONE_MINUS_SRC_ALPHA</code> <code>GL_ONE</code></td><td>glBlendFunc</td></tr>
+<tr><td>光源</td><td><code>GL_LIGHT0</code>…<code>GL_LIGHT7</code> <code>GL_POSITION</code> <code>GL_AMBIENT</code> <code>GL_DIFFUSE</code> <code>GL_SPECULAR</code></td><td>glLightfv</td></tr>
+<tr><td>材质</td><td><code>GL_AMBIENT</code> <code>GL_DIFFUSE</code> <code>GL_SPECULAR</code> <code>GL_EMISSION</code> <code>GL_SHININESS</code> <code>GL_AMBIENT_AND_DIFFUSE</code></td><td>glMaterialfv</td></tr>
+<tr><td>纹理采样</td><td><code>GL_TEXTURE_MIN_FILTER</code> <code>GL_TEXTURE_MAG_FILTER</code> <code>GL_LINEAR</code> <code>GL_NEAREST</code> <code>GL_LINEAR_MIPMAP_LINEAR</code></td><td>远处不闪烁靠 min filter</td></tr>
+<tr><td>纹理环绕</td><td><code>GL_TEXTURE_WRAP_S</code> <code>GL_TEXTURE_WRAP_T</code> <code>GL_REPEAT</code> <code>GL_CLAMP</code></td><td>glTexParameteri</td></tr>
+<tr><td>纹理格式</td><td><code>GL_RGB</code> <code>GL_RGBA</code> <code>GL_UNSIGNED_BYTE</code></td><td>glTexImage2D / glReadPixels</td></tr>
+<tr><td>纹理环境</td><td><code>GL_TEXTURE_ENV</code> <code>GL_TEXTURE_ENV_MODE</code> <code>GL_MODULATE</code> <code>GL_REPLACE</code></td><td>glTexEnvi</td></tr>
+<tr><td>雾</td><td><code>GL_FOG_MODE</code> <code>GL_LINEAR</code> <code>GL_EXP</code> <code>GL_EXP2</code> <code>GL_FOG_START</code> <code>GL_FOG_END</code> <code>GL_FOG_COLOR</code> <code>GL_FOG_DENSITY</code></td><td>glFogf / glFogi</td></tr>
+<tr><td>GLU 绘制风格</td><td><code>GLU_FILL</code> <code>GLU_LINE</code> <code>GLU_POINT</code> <code>GLU_SILHOUETTE</code></td><td>gluQuadricDrawStyle</td></tr>
+<tr><td>GLU 法线</td><td><code>GLU_SMOOTH</code> <code>GLU_FLAT</code></td><td>gluQuadricNormals</td></tr>
+</tbody>
+</table>
+</div>
+</section>
+
+<section class="group">
+<h2>常见调用顺序</h2>
+<div class="recipes">
+
+<div class="recipe">
+<h3>main：建窗口</h3>
+<pre>glutInit(&amp;argc, argv);
+glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
+glutInitWindowSize(800, 600);
+glutCreateWindow("title");
+
+glEnable(GL_DEPTH_TEST);
+glutDisplayFunc(display);
+glutReshapeFunc(reshape);
+glutKeyboardFunc(keyboard);
+glutMainLoop();</pre>
+</div>
+
+<div class="recipe">
+<h3>display：画一帧</h3>
+<pre>glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+glMatrixMode(GL_MODELVIEW);
+glLoadIdentity();
+gluLookAt(ex, ey, ez, cx, cy, cz, 0, 1, 0);
+
+// 画物体：glPushMatrix / 变换 / 画 / glPopMatrix
+
+glutSwapBuffers();</pre>
+</div>
+
+<div class="recipe">
+<h3>reshape：改窗口尺寸</h3>
+<pre>glViewport(0, 0, w, h);
+glMatrixMode(GL_PROJECTION);
+glLoadIdentity();
+gluPerspective(45.0, (double)w / h, 0.1, 100.0);
+glMatrixMode(GL_MODELVIEW);</pre>
+</div>
+
+<div class="recipe">
+<h3>光照最小集</h3>
+<pre>glEnable(GL_LIGHTING);
+glEnable(GL_LIGHT0);
+glEnable(GL_NORMALIZE);
+
+glLightfv(GL_LIGHT0, GL_POSITION, lightPos);
+glLightfv(GL_LIGHT0, GL_DIFFUSE,  lightColor);
+
+glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE,  matDiffuse);
+glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, matSpecular);
+glMaterialf (GL_FRONT_AND_BACK, GL_SHININESS, 32.0f);
+
+glShadeModel(GL_SMOOTH);</pre>
+</div>
+
+<div class="recipe">
+<h3>纹理四步</h3>
+<pre>// 1. 建纹理图并上传
+glGenTextures(1, &amp;tex);
+glBindTexture(GL_TEXTURE_2D, tex);
+glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
+             w, h, 0, GL_RGB, GL_UNSIGNED_BYTE, pixels);
+
+// 2. 设采样参数
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+// 3. 建模时给纹理坐标
+gluQuadricTexture(quad, GL_TRUE);
+
+// 4. 绘制时启用 + 绑定
+glEnable(GL_TEXTURE_2D);
+glBindTexture(GL_TEXTURE_2D, tex);</pre>
+</div>
+
+<div class="recipe">
+<h3>透明与排序</h3>
+<pre>glEnable(GL_BLEND);
+glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+// 先画所有不透明物体
+// 再按相机距离从远到近画透明物体
+
+glDepthMask(GL_FALSE);   // 透明物体通常不写深度
+// 画土星环 / 大气层
+glDepthMask(GL_TRUE);</pre>
+</div>
+
+</div>
+</section>
+
+<p class="empty" id="empty">没有匹配的函数，换个关键词试试。</p>
+
+</main>
+
+<footer>
+  本页是面向本实验的速查表，不是 OpenGL 全量手册。完整语义、参数表和错误码以官方 Refpage 与本机头文件为准。
+  生成日期 2026-11-07。
+</footer>
+</div>
+
+<script>
+(function () {
+  var q = document.getElementById('q');
+  var empty = document.getElementById('empty');
+  var chips = Array.prototype.slice.call(document.querySelectorAll('.chip'));
+  var groups = Array.prototype.slice.call(document.querySelectorAll('.group[data-group]'));
+  var current = 'all';
+
+  function apply() {
+    var term = q.value.trim().toLowerCase();
+    var shown = 0;
+
+    document.querySelectorAll('.entry').forEach(function (el) {
+      var okCat = current === 'all' || el.getAttribute('data-cat') === current;
+      var okTerm = !term || el.textContent.toLowerCase().indexOf(term) !== -1;
+      var visible = okCat && okTerm;
+      el.hidden = !visible;
+      if (visible) shown += 1;
+    });
+
+    groups.forEach(function (g) {
+      var visible = g.querySelectorAll('.entry:not([hidden])').length > 0;
+      g.hidden = !visible;
+    });
+
+    empty.style.display = shown ? 'none' : 'block';
+  }
+
+  chips.forEach(function (chip) {
+    chip.addEventListener('click', function () {
+      current = chip.getAttribute('data-cat');
+      chips.forEach(function (c) {
+        c.setAttribute('aria-pressed', c === chip ? 'true' : 'false');
+      });
+      apply();
+    });
+  });
+
+  q.addEventListener('input', apply);
+})();
+</script>
+</body>
+</html>
