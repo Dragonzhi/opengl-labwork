@@ -137,7 +137,7 @@ void timer(int)
     const int now = glutGet(GLUT_ELAPSED_TIME);
      float deltaTime = (now - lastTimeMs) * 0.001f;
     lastTimeMs = now;
-    if (deltaTime < 0.1f) deltaTime = 0.1f; // 防止窗口失焦后一次跳太大
+    if (deltaTime > 0.1f) deltaTime = 0.1f; // 防止窗口失焦后一次跳太大
 
     Earth.update(deltaTime);
     glutPostRedisplay();
@@ -233,6 +233,13 @@ void reshape(int width, int height)
     glMatrixMode(GL_MODELVIEW);
 }
 
+void keyboard(unsigned char key, int, int)
+{
+    if (key == 27) {
+        glutLeaveMainLoop();
+    }
+}
+
 int main(int argc, char** argv)
 {
     smokeTest = argc > 1 && std::strcmp(argv[1], "--smoke-test") == 0;
@@ -255,7 +262,8 @@ int main(int argc, char** argv)
     glutReshapeFunc(reshape);
     glutMouseFunc(mouse);
     glutMotionFunc(motion);
-
+    glutKeyboardFunc(keyboard);
+    
     if (!smokeTest) {
         lastTimeMs = glutGet(GLUT_ELAPSED_TIME);
         glutTimerFunc(16, timer, 0);
