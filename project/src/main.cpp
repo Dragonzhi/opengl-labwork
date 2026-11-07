@@ -6,14 +6,22 @@
 
 const float PI = 3.1415926f;
 
+/** 烟雾测试开关 */
 static bool smokeTest = false;
+static int testResult = 0;
+
 // GLU 二次曲面的“绘制设置”句柄：它不保存几何，只保存绘制风格（填充/线框）、
 // 法线生成方式、是否生成纹理坐标等状态，供 gluSphere / gluCylinder / gluDisk 共用。
 // 用 gluNewQuadric() 创建，用 gluDeleteQuadric() 释放。
 GLUquadric* quad;
-static int testResult = 0;
+
 static float angle = 0.0f; // 旋转角度
 static bool keyA = false, keyD = false;
+
+/** 鼠标拖动状态 */
+static bool dragging = false;
+static int lastMouseX = 0;
+static int lastMouseY = 0;
 
 class OrbitEye
 {
@@ -113,10 +121,34 @@ private:
     float color[3];
 };
 
+/** 对象实例化 */
 static OrbitEye gEye;
 static Planet Earth(0.3f, 3.0f, 0.0f, 0.5f, 1.0f);
 
+void mouse(int button, int state, int x, int y)
+{
+    if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
+        dragging = true;
+        lastMouseX = x;
+        lastMouseY = y;
+    }else {
+        dragging = false;
+    }
+}
 
+void motion(int x, int y)
+{
+    if (dragging) {
+        const float deltaX = x - lastMouseX;
+        const float deltaY = y - lastMouseY;
+        lastMouseX = x;
+        lastMouseY = y;
+        gEye.orbit(-deltaX * 0.5f, deltaY * 0.5f); // TODO 0.5 是灵敏度控制参数，目前为硬编码
+        glutPostRedisplay();
+    }
+}
+
+/** 绘制轨道 */
 static void drawOrbit(float radius, int segments)
 {
     glColor3f(0.35f, 0.45f, 0.65f);
@@ -211,6 +243,8 @@ int main(int argc, char** argv)
     glClearColor(0.08f, 0.10f, 0.15f, 1.0f);
     glutDisplayFunc(display);
     glutReshapeFunc(reshape);
+    glutMouseFunc(mouse);
+    glutMotionFunc(motion);
     glutKeyboardFunc(keyboard);
     glutKeyboardUpFunc(keyboardUp);
     glutIdleFunc(idle);
