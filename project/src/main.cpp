@@ -127,12 +127,25 @@ static Planet Earth(0.3f, 3.0f, 0.0f, 0.5f, 1.0f);
 
 void mouse(int button, int state, int x, int y)
 {
-    if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
-        dragging = true;
-        lastMouseX = x;
-        lastMouseY = y;
-    }else {
-        dragging = false;
+    if (state != GLUT_DOWN) return;
+
+    if (button == GLUT_LEFT_BUTTON) {
+        if (state == GLUT_DOWN) {
+            dragging = true;
+            lastMouseX = x;
+            lastMouseY = y;
+        } else {
+            dragging = false;
+        }
+        return;
+    }
+
+    if (button == 3) {
+        gEye.zoom(0.9f);
+        glutPostRedisplay();
+    } else if (button == 4) {
+        gEye.zoom(1.1f);
+        glutPostRedisplay();
     }
 }
 
