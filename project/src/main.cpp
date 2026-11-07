@@ -15,13 +15,13 @@ static int testResult = 0;
 // 用 gluNewQuadric() 创建，用 gluDeleteQuadric() 释放。
 GLUquadric* quad;
 
-static float angle = 0.0f; // 旋转角度
-static bool keyA = false, keyD = false;
-
 /** 鼠标拖动状态 */
 static bool dragging = false;
 static int lastMouseX = 0;
 static int lastMouseY = 0;
+
+/** 上一帧时间戳 */
+static int lastTimeMs = 0;
 
 class OrbitEye
 {
@@ -96,8 +96,8 @@ public:
 class Planet
 {
 public:
-    Planet(float radius, float orbitRadius, float r, float g, float b)
-    : radius(radius), orbitRadius(orbitRadius), orbitAngle(0.0f)
+    Planet(float radius, float orbitRadius, float orbitSpeed, float r, float g, float b)
+    : radius(radius), orbitRadius(orbitRadius), orbitAngle(0.0f), orbitSpeed(orbitSpeed)
     {
         color[0] = r;
         color[1] = g;
@@ -114,21 +114,38 @@ public:
         glPopMatrix();
     }
 
+    void update(float deltaTime)
+    {
+        orbitAngle += deltaTime * orbitSpeed;
+        if (orbitAngle >= 360.0f) orbitAngle -= 360.0f;
+    }
+
 private:
     float radius;
     float orbitRadius;
-    float orbitAngle;   // 先固定 0，M1 再更新
+    float orbitAngle;
+    float orbitSpeed;
     float color[3];
 };
 
 /** 对象实例化 */
 static OrbitEye gEye;
-static Planet Earth(0.3f, 3.0f, 0.0f, 0.5f, 1.0f);
+static Planet Earth(0.3f, 3.0f, 30.0f, 0.0f, 0.5f, 1.0f);
+
+void timer(int) 
+{
+    const int now = glutGet(GLUT_ELAPSED_TIME);
+     float deltaTime = (now - lastTimeMs) * 0.001f;
+    lastTimeMs = now;
+    if (deltaTime < 0.1f) deltaTime = 0.1f; // 防止窗口失焦后一次跳太大
+
+    Earth.update(deltaTime);
+    glutPostRedisplay();
+    glutTimerFunc(16, timer, 0);
+}
 
 void mouse(int button, int state, int x, int y)
 {
-    if (state != GLUT_DOWN) return;
-
     if (button == GLUT_LEFT_BUTTON) {
         if (state == GLUT_DOWN) {
             dragging = true;
@@ -139,7 +156,9 @@ void mouse(int button, int state, int x, int y)
         }
         return;
     }
-
+    
+    if (state != GLUT_DOWN) return;
+    
     if (button == 3) {
         gEye.zoom(0.9f);
         glutPostRedisplay();
@@ -214,28 +233,6 @@ void reshape(int width, int height)
     glMatrixMode(GL_MODELVIEW);
 }
 
-void keyboard(unsigned char key, int, int)
-{
-    if (key == 27) {glutLeaveMainLoop(); return;}
-    if (key == 'a' || key == 'A') keyA = true;
-    if (key == 'd' || key == 'D') keyD = true;
-}
-
-void keyboardUp(unsigned char key, int, int)
-{
-    if (key == 'a' || key == 'A') keyA = false;
-    if (key == 'd' || key == 'D') keyD = false;
-}
-
-void idle()
-{
-    // angle += 0.01f;
-    if (keyA) angle += 0.01f;
-    if (keyD) angle -= 0.01f;
-    if (angle <= -360.0f || angle >= 360.0f) angle = 0.0f;
-    if (keyA || keyD) glutPostRedisplay();
-}
-
 int main(int argc, char** argv)
 {
     smokeTest = argc > 1 && std::strcmp(argv[1], "--smoke-test") == 0;
@@ -258,9 +255,12 @@ int main(int argc, char** argv)
     glutReshapeFunc(reshape);
     glutMouseFunc(mouse);
     glutMotionFunc(motion);
-    glutKeyboardFunc(keyboard);
-    glutKeyboardUpFunc(keyboardUp);
-    glutIdleFunc(idle);
+
+    if (!smokeTest) {
+        lastTimeMs = glutGet(GLUT_ELAPSED_TIME);
+        glutTimerFunc(16, timer, 0);
+    }
+
     glutMainLoop();
     return testResult;
 }
