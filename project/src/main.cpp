@@ -1,7 +1,6 @@
 #include <GL/freeglut.h>
 #include <cstdio>
 #include <cstring>
-#include <cstdlib>
 #include <cmath>
 
 const float PI = 3.1415926f;
@@ -96,9 +95,10 @@ public:
 class Planet
 {
 public:
-    Planet(float radius, float orbitRadius, float orbitSpeed, float r, float g, float b)
-    : radius(radius), orbitRadius(orbitRadius), orbitAngle(0.0f), orbitSpeed(orbitSpeed)
+    Planet(float radius, float orbitRadius, float orbitSpeed, float spinSpeed, float r, float g, float b)
+    : radius(radius), orbitRadius(orbitRadius), orbitAngle(0.0f), orbitSpeed(orbitSpeed), spinSpeed(spinSpeed)
     {
+        spinAngle = 0.0f;
         color[0] = r;
         color[1] = g;
         color[2] = b;
@@ -107,17 +107,28 @@ public:
     void draw(GLUquadric* quad) const
     {
         glPushMatrix();
-        glRotatef(orbitAngle, 0.0f, 1.0f, 0.0f);
-        glTranslatef(orbitRadius, 0.0f, 0.0f);
+        glRotatef(orbitAngle, 0.0f, 1.0f, 0.0f);        // 公转
+        glTranslatef(orbitRadius, 0.0f, 0.0f);        // 到轨道的位置
+        glRotatef(spinAngle, 0.0f, 1.0f, 0.0f);        // 自转
+        
         glColor3fv(color);
         gluSphere(quad, radius, 16, 8);
+
+        glPushMatrix();
+        glTranslatef(radius * 0.98f, 0.0f, 0.0f);
+        glColor3f(0.15f, 0.75f, 0.35f);
+        gluSphere(quad, radius * 0.12f, 8, 6);
+        glPopMatrix();
+
         glPopMatrix();
     }
 
     void update(float deltaTime)
     {
         orbitAngle += deltaTime * orbitSpeed;
+        spinAngle += deltaTime * spinSpeed;
         if (orbitAngle >= 360.0f) orbitAngle -= 360.0f;
+        if (spinAngle >= 360.0f) spinAngle -= 360.0f;
     }
 
 private:
@@ -126,11 +137,13 @@ private:
     float orbitAngle;
     float orbitSpeed;
     float color[3];
+    float spinAngle;
+    float spinSpeed;        // 自转速度（度/秒）
 };
 
 /** 对象实例化 */
 static OrbitEye gEye;
-static Planet Earth(0.3f, 3.0f, 30.0f, 0.0f, 0.5f, 1.0f);
+static Planet Earth(0.3f, 3.0f, 30.0f, 90.0f, 0.0f, 0.5f, 1.0f);
 
 void timer(int) 
 {
