@@ -7,6 +7,11 @@ const float PI = 3.1415926f;
 
 float smoothstep(float e0, float e1, float x);   // 定义在下面，这里先声明
 
+// 环影的全局可调项，默认值和 scene.cfg 里的默认值一致
+float gShadowStrengthScale = 1.0f;
+float gShadowFeather = 0.06f;
+int   gShadowSubdiv = 4;
+
 // 3x3 旋转矩阵，行主序。只为了在 CPU 侧把球面顶点搬到世界坐标去做阴影判断
 struct Mat3
 {
@@ -77,6 +82,22 @@ float smoothstep(float e0, float e1, float x)
     if (t > 1.0f) t = 1.0f;
     return t * t * (3.0f - 2.0f * t);
 }
+}  // namespace
+
+// 环影的质量旋钮：强度倍数 / 边界柔化比例 / 球面细分倍数
+void setRingShadowTuning(float strength, float feather, int subdiv)
+{
+    if (strength < 0.0f) strength = 0.0f;
+    if (strength > 2.0f) strength = 2.0f;
+    gShadowStrengthScale = strength;
+
+    if (feather < 0.0f) feather = 0.0f;
+    if (feather > 0.3f) feather = 0.3f;
+    gShadowFeather = feather;
+
+    if (subdiv < 1) subdiv = 1;
+    if (subdiv > 8) subdiv = 8;
+    gShadowSubdiv = subdiv;
 }
 
 Body::Body()
@@ -257,7 +278,7 @@ void Body::draw(GLUquadric* quad) const
     }
     if (ringTexture != 0 && ringShadowStrength > 0.0f) {
         // 环会挡光：换成逐顶点的球面，把影子和本体一次画完
-        drawShadowedSphere(bodyRadius, slices * 2, stacks * 2);
+        drawShadowedSphere(bodyRadius, slices * gShadowSubdiv, stacks * gShadowSubdiv);
     } else {
         gluSphere(quad, bodyRadius, slices, stacks);
     }
@@ -337,9 +358,16 @@ void Body::drawShadowedSphere(float radius, int slices, int stacks) const
                             const float qy = vy + tHit * sy;
                             const float qz = vz + tHit * sz;
                             const float r = std::sqrt(qx * qx + qy * qy + qz * qz);
-                            if (r > innerR && r < outerR) {
+                            // 环带两端用 smoothstep 收一下：硬切的边界即使细分很高，
+                            // 插值出来也是一圈锯齿。feather 取环带宽度的 6%。
+                            const float feather = (outerR - innerR) * gShadowFeather;
+                            const float cover = smoothstep(innerR, innerR + feather, r) *
+                                                (1.0f - smoothstep(outerR - feather, outerR, r));
+                            if (cover > 0.0f) {
                                 const float uu = (r - innerR) / (outerR - innerR);
-                                shade = 1.0f - ringShadowStrength * ringAlphaProfile(uu);
+                                float strength = ringShadowStrength * gShadowStrengthScale;
+                                if (strength > 1.0f) strength = 1.0f;
+                                shade = 1.0f - strength * ringAlphaProfile(uu) * cover;
                             }
                         }
                     }

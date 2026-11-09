@@ -79,7 +79,7 @@ void drawHud()
 
     glColor3f(0.80f, 0.86f, 1.00f);
     drawTextAt(14, height - 26,
-               "ESC quit  SPACE pause  +/- speed  mouse orbit/zoom  R reset  L scale  `~ view");
+               "ESC quit  SPACE pause  +/- speed  mouse orbit/zoom  R reset  L real  `~ view");
 
     char focusText[64];
     if (gFocusIndex < 0) {
@@ -89,23 +89,28 @@ void drawHud()
                       sceneBodyName(gFocusIndex), gFocusIndex + 1, sceneBodyCount());
     }
 
-    // 真实间距模式下在第二行末尾标出来，避免切过去之后忘了自己在哪个模式
-    const char* scaleText = sceneScaleMode() ? "  REAL-DIST" : "";
+    // 第二行显示当前模式：真实间距 / 演示间距下的缩放倍率
+    char modeText[32];
+    if (sceneScaleMode()) {
+        std::snprintf(modeText, sizeof(modeText), "REAL-DIST");
+    } else {
+        std::snprintf(modeText, sizeof(modeText), "gap %.1fx", sceneSpacingScale());
+    }
 
     char line[192];
     if (gPaused) {
-        std::snprintf(line, sizeof(line), "PAUSED  focus: %s  speed %.2fx  dist %.1f  keys 1-9/0/TAB%s",
-                      focusText, gTimeScale, gCamera.distance(), scaleText);
+        std::snprintf(line, sizeof(line), "PAUSED  focus: %s  speed %.2fx  dist %.1f  %s  keys 1-9/0/TAB",
+                      focusText, gTimeScale, gCamera.distance(), modeText);
     } else {
-        std::snprintf(line, sizeof(line), "focus: %s  speed %.2fx  dist %.1f  keys 1-9/0/TAB%s",
-                      focusText, gTimeScale, gCamera.distance(), scaleText);
+        std::snprintf(line, sizeof(line), "focus: %s  speed %.2fx  dist %.1f  %s  keys 1-9/0/TAB",
+                      focusText, gTimeScale, gCamera.distance(), modeText);
     }
     drawTextAt(14, height - 48, line);
 
     // 第三行：外焰参数热重载的状态。改完 corona.cfg 按 F5，这里会显示第几次加载
     char coronaLine[128];
     std::snprintf(coronaLine, sizeof(coronaLine),
-                  "F5 reload corona.cfg  |  %s", sceneCoronaStatus());
+                  "F5 reload cfg  |  %s  |  %s", sceneCoronaStatus(), sceneConfigStatus());
     drawTextAt(14, height - 70, coronaLine);
 
     glEnable(GL_FOG);
@@ -255,6 +260,14 @@ void keyboard(unsigned char key, int, int)
     case 'L':
         sceneSetScaleMode(!sceneScaleMode());
         break;
+    case '[':                        // 行星间距整体压缩 / 拉开
+        sceneSetSpacingScale(sceneSpacingScale() - 0.1f);
+        gCamera.setOverviewDistance(sceneOverviewDistance());
+        break;
+    case ']':
+        sceneSetSpacingScale(sceneSpacingScale() + 0.1f);
+        gCamera.setOverviewDistance(sceneOverviewDistance());
+        break;
     default:
         if (key >= '1' && key <= '9') {
             focusBody(key - '1');
@@ -268,7 +281,10 @@ void special(int key, int, int)
 {
     // F5：重新读 corona.cfg 并重建外焰贴图，调参不用重新编译
     if (key == GLUT_KEY_F5) {
+        sceneReloadConfig();
         sceneReloadCorona();
+        // 间距可能被 cfg 改了，相机的总览距离要跟着重算
+        gCamera.setOverviewDistance(sceneOverviewDistance());
         glutPostRedisplay();
     }
 }

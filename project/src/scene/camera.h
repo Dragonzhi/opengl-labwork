@@ -20,6 +20,10 @@ public:
     // 聚焦目标：传 0 表示回到世界原点。
     // 内部会把距离调到"能看清这个天体"的档位，并保持当前方位角/俯仰角不变。
     void setFocus(const Body* body);
+
+    // 全局视角的距离是可调参数：行星间距放大后，画面得跟着退远才装得下
+    void setOverviewDistance(float value);
+    float overviewDistance() const { return overviewDist; }
     const Body* focus() const { return focusTarget; }
 
     void apply() const;
@@ -34,7 +38,8 @@ private:
 
     float yaw;    // 绕 +Y 轴的方位角（度）
     float pitch;  // 相对 XZ 平面的俯仰角（度）
-    float dist;   // 相机到焦点的距离
+    float dist;         // 相机到焦点的距离
+    float overviewDist; // 全局视角用的距离（行星间距缩放时同步改）
 
     const Body* focusTarget;   // 只引用，不拥有（天体由场景持有）
 };

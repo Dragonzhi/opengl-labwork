@@ -18,7 +18,14 @@ const char* sceneBodyName(int index);
 
 // 演示间距 <-> 真实间距（按天文单位单调拉伸）切换
 void sceneSetScaleMode(bool realScale);
+void sceneSetSpacingScale(float scale);
+float sceneSpacingScale();
+float sceneOverviewDistance();
 bool sceneScaleMode();
+
+// 场景参数热重载：重新读 scene.cfg（间距/光照/雾/环影/小天体带），供 F5 调用
+bool sceneReloadConfig();
+const char* sceneConfigStatus();
 
 // 外焰参数热重载：重新读 corona.cfg 并重建贴图，供 F5 调用
 bool sceneReloadCorona();

@@ -17,6 +17,10 @@ struct Vec3
 
 // 一个天体 = 一层"公转 + 自转"的局部坐标系，可以再挂子天体（卫星）。
 // 层级不是靠父子关系自动推导的，而是靠 glPushMatrix / glPopMatrix 的矩阵栈现算出来的。
+// 环影的全局调节（由 scene.cfg 提供）：强度倍数、边界柔化比例、球面细分倍数。
+// 放在这里而不是 Body 成员，是因为它描述的是"渲染质量"，不属于某颗行星。
+void setRingShadowTuning(float strength, float feather, int subdiv);
+
 class Body
 {
 public:

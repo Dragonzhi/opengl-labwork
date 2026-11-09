@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <vector>
 
 namespace {
@@ -27,20 +28,15 @@ struct BeltPoint
     float y;
 };
 
-const int kAsteroidCount = 900;
-const int kKuiperCount = 1400;
+// 点数上限：数组按上限静态分配，scene.cfg 里的 count 只能在 [0, 上限] 之间调
+const int kAsteroidMax = 2000;
+const int kKuiperMax = 2400;
 
-BeltPoint gAsteroidParams[kAsteroidCount];
-BeltPoint gKuiperParams[kKuiperCount];
-float gAsteroidPosition[kAsteroidCount * 3];
-float gKuiperPosition[kKuiperCount * 3];
+BeltPoint gAsteroidParams[kAsteroidMax];
+BeltPoint gKuiperParams[kKuiperMax];
+float gAsteroidPosition[kAsteroidMax * 3];
+float gKuiperPosition[kKuiperMax * 3];
 float gBeltAngle = 0.0f;        // 整条带缓慢自转，暂停时一起停
-
-// 真实半长轴区间（天文单位）：主带 2.1~3.3，柯伊伯带 33~45
-const float kAsteroidAuInner = 2.1f;
-const float kAsteroidAuOuter = 3.3f;
-const float kKuiperAuInner = 33.0f;
-const float kKuiperAuOuter = 45.0f;
 
 // 所有天体都是静态对象，生命周期贯穿整个进程，指针永远有效
 Body gSun;
@@ -88,6 +84,73 @@ const float kRealOrbitScale = 0.95f;
 const float kRealSizeScale = 0.15f;
 
 bool gRealScale = false;
+
+// ------------------------------------------------------------------
+// scene.cfg 里的全部可调参数。
+// 改完保存，在窗口里按 F5 立即生效：不用重新编译，也不用关窗口。
+// 加新参数只要在这里加字段 + 在 applySceneKey 里加一行。
+// ------------------------------------------------------------------
+struct SceneParams
+{
+    float spacing;            // 行星间距整体缩放（只放大轨道，不放大行星本身）
+    float overviewDistance;   // 全局视角基准距离，实际 = 这个值 × spacing
+
+    float shadowStrength;     // 环影强度倍数（0 = 关掉环投在行星上的影子）
+    float shadowFeather;      // 环影边界柔化，占环带宽度的比例
+    int   shadowSubdiv;       // 环影球面细分倍数
+
+    int   asteroidCount;
+    float asteroidDemoInner, asteroidDemoOuter;   // 演示间距下的半径区间
+    float asteroidAuInner, asteroidAuOuter;       // 真实半长轴区间（AU）
+    float asteroidColor[3];
+    float asteroidPointSize;
+
+    int   kuiperCount;
+    float kuiperDemoInner, kuiperDemoOuter;
+    float kuiperAuInner, kuiperAuOuter;
+    float kuiperColor[3];
+    float kuiperPointSize;
+
+    float ambient[3];         // 全局环境光
+    float fogStart, fogEnd;
+
+    SceneParams()
+        : spacing(1.0f), overviewDistance(62.0f),
+          shadowStrength(1.0f), shadowFeather(0.06f), shadowSubdiv(4),
+          asteroidCount(900), asteroidDemoInner(12.9f), asteroidDemoOuter(14.3f),
+          asteroidAuInner(2.1f), asteroidAuOuter(3.3f),
+          asteroidPointSize(1.5f),
+          kuiperCount(1400), kuiperDemoInner(34.0f), kuiperDemoOuter(41.0f),
+          kuiperAuInner(33.0f), kuiperAuOuter(45.0f),
+          kuiperPointSize(1.5f),
+          fogStart(90.0f), fogEnd(380.0f)
+    {
+        asteroidColor[0] = 0.30f; asteroidColor[1] = 0.28f; asteroidColor[2] = 0.24f;
+        kuiperColor[0] = 0.42f;   kuiperColor[1] = 0.46f;   kuiperColor[2] = 0.52f;
+        ambient[0] = 0.40f;       ambient[1] = 0.42f;       ambient[2] = 0.54f;
+    }
+};
+
+SceneParams gParams;
+
+// scene.cfg 的状态，HUD 上显示"第几次加载、读进来几个键"
+char gConfigStatus[96] = "scene.cfg 未找到";
+int gConfigReloadCount = 0;
+int gConfigKeyCount = 0;
+
+float clampF(float v, float lo, float hi)
+{
+    if (v < lo) return lo;
+    if (v > hi) return hi;
+    return v;
+}
+
+int clampI(int v, int lo, int hi)
+{
+    if (v < lo) return lo;
+    if (v > hi) return hi;
+    return v;
+}
 
 GLUquadric* gQuad = 0;
 std::vector<GLuint> gTextures;
@@ -173,23 +236,25 @@ void buildBelt(BeltPoint* params, int count, int seed, float thickness)
 // 真实模式直接用和行星相同的 r = 偏移 + 缩放·a(AU)
 void rebuildBeltPositions()
 {
-    for (int i = 0; i < kAsteroidCount; ++i) {
+    for (int i = 0; i < kAsteroidMax; ++i) {
         const float t = gAsteroidParams[i].t;
         const float radius = gRealScale
-            ? (kRealOrbitOffset + kRealOrbitScale * (kAsteroidAuInner +
-                                                     (kAsteroidAuOuter - kAsteroidAuInner) * t))
-            : (12.9f + 1.4f * t);
+            ? (kRealOrbitOffset + kRealOrbitScale * (gParams.asteroidAuInner +
+                                                     (gParams.asteroidAuOuter - gParams.asteroidAuInner) * t))
+            : (gParams.asteroidDemoInner +
+               (gParams.asteroidDemoOuter - gParams.asteroidDemoInner) * t) * gParams.spacing;
         gAsteroidPosition[i * 3 + 0] = radius * std::cos(gAsteroidParams[i].theta);
         gAsteroidPosition[i * 3 + 1] = gAsteroidParams[i].y;
         gAsteroidPosition[i * 3 + 2] = radius * std::sin(gAsteroidParams[i].theta);
     }
 
-    for (int i = 0; i < kKuiperCount; ++i) {
+    for (int i = 0; i < kKuiperMax; ++i) {
         const float t = gKuiperParams[i].t;
         const float radius = gRealScale
-            ? (kRealOrbitOffset + kRealOrbitScale * (kKuiperAuInner +
-                                                     (kKuiperAuOuter - kKuiperAuInner) * t))
-            : (34.0f + 7.0f * t);
+            ? (kRealOrbitOffset + kRealOrbitScale * (gParams.kuiperAuInner +
+                                                     (gParams.kuiperAuOuter - gParams.kuiperAuInner) * t))
+            : (gParams.kuiperDemoInner +
+               (gParams.kuiperDemoOuter - gParams.kuiperDemoInner) * t) * gParams.spacing;
         gKuiperPosition[i * 3 + 0] = radius * std::cos(gKuiperParams[i].theta);
         gKuiperPosition[i * 3 + 1] = gKuiperParams[i].y;
         gKuiperPosition[i * 3 + 2] = radius * std::sin(gKuiperParams[i].theta);
@@ -198,17 +263,18 @@ void rebuildBeltPositions()
 
 void buildBelts()
 {
-    buildBelt(gAsteroidParams, kAsteroidCount, 20261111, 0.5f);
-    buildBelt(gKuiperParams, kKuiperCount, 20261110, 1.2f);
+    buildBelt(gAsteroidParams, kAsteroidMax, 20261111, 0.5f);
+    buildBelt(gKuiperParams, kKuiperMax, 20261110, 1.2f);
     rebuildBeltPositions();
 }
 
-void drawBelt(const float* positions, int count, float r, float g, float b)
+void drawBelt(const float* positions, int count, const float* color, float pointSize)
 {
+    if (count <= 0) return;
     glDisable(GL_LIGHTING);
     glDisable(GL_TEXTURE_2D);
-    glPointSize(1.5f);
-    glColor3f(r, g, b);
+    glPointSize(pointSize);
+    glColor3f(color[0], color[1], color[2]);
 
     glPushMatrix();
     glRotatef(gBeltAngle, 0.0f, 1.0f, 0.0f);
@@ -225,9 +291,11 @@ void drawBelt(const float* positions, int count, float r, float g, float b)
 
 void drawBelts()
 {
-    // 主带偏暖灰（岩石），柯伊伯带偏冷蓝（冰）
-    drawBelt(gAsteroidPosition, kAsteroidCount, 0.50f, 0.46f, 0.40f);
-    drawBelt(gKuiperPosition, kKuiperCount, 0.42f, 0.46f, 0.52f);
+    // 主带偏暖灰（岩石），柯伊伯带偏冷蓝（冰）；颜色和点数都来自 scene.cfg
+    drawBelt(gAsteroidPosition, gParams.asteroidCount, gParams.asteroidColor,
+             gParams.asteroidPointSize);
+    drawBelt(gKuiperPosition, gParams.kuiperCount, gParams.kuiperColor,
+             gParams.kuiperPointSize);
 }
 
 void drawStarfield()
@@ -314,7 +382,8 @@ void configureBodies()
 {
     // 轨道半径与角速度统一由 gOrbits 提供，避免两处各写一份而不同步
     for (int i = 0; i < kOrbitCount; ++i) {
-        gOrbits[i].body->setOrbit(gOrbits[i].demoRadius, gOrbits[i].speed);
+        gOrbits[i].body->setOrbit(gOrbits[i].demoRadius * gParams.spacing,
+                                  gOrbits[i].speed);
     }
 
     // ---------- 太阳：位置在原点，靠 emission 自发光 ----------
@@ -445,6 +514,10 @@ void sceneInit()
     gluQuadricNormals(gQuad, GLU_SMOOTH);     // 顶点法线插值 -> Gouraud 平滑
     gluQuadricTexture(gQuad, GL_TRUE);        // 让 gluSphere 生成 s/t 纹理坐标
 
+    // 读 scene.cfg：环境光、雾、间距、环影、小天体带的参数都在那里。
+    // 必须在 configureBodies 之前，轨道半径要用到里面的 spacing
+    sceneReloadConfig();
+
     buildStarfield();
     buildBelts();
     configureBodies();
@@ -521,7 +594,7 @@ void sceneSetScaleMode(bool realScale)
         OrbitEntry& entry = gOrbits[i];
         const float radius = realScale
             ? (kRealOrbitOffset + kRealOrbitScale * entry.au)
-            : entry.demoRadius;
+            : entry.demoRadius * gParams.spacing;
         entry.body->setOrbitRadius(radius);
         entry.body->setRadiusScale(sizeScale);
     }
@@ -537,6 +610,213 @@ void sceneSetScaleMode(bool realScale)
 bool sceneScaleMode()
 {
     return gRealScale;
+}
+
+void sceneSetSpacingScale(float scale)
+{
+    gParams.spacing = clampF(scale, 0.8f, 2.0f);
+
+    // 真实间距模式下轨道半径由天文单位算，间距缩放不参与
+    if (!gRealScale) {
+        for (int i = 0; i < kOrbitCount; ++i) {
+            gOrbits[i].body->setOrbitRadius(gOrbits[i].demoRadius * gParams.spacing);
+        }
+    }
+    rebuildBeltPositions();
+}
+
+float sceneSpacingScale()
+{
+    return gParams.spacing;
+}
+
+float sceneOverviewDistance()
+{
+    // 总览距离跟着间距一起放大，行星拉开多少、相机就退多少，装不下的问题自动消失
+    return gParams.overviewDistance * gParams.spacing;
+}
+
+// ================= scene.cfg =================
+namespace {
+
+const char* const kSceneConfigPaths[] = {
+    "scene.cfg",
+    "../scene.cfg",
+    "project/scene.cfg"
+};
+const int kSceneConfigPathCount = 3;
+
+char* trimText(char* s)
+{
+    while (*s == ' ' || *s == '\t' || *s == '\r' || *s == '\n') ++s;
+    char* end = s + std::strlen(s);
+    while (end > s && (end[-1] == ' ' || end[-1] == '\t' ||
+                       end[-1] == '\r' || end[-1] == '\n')) {
+        --end;
+    }
+    *end = '\0';
+    return s;
+}
+
+// 一行里可能有多个数（颜色的 r g b），最多读 3 个
+int parseFloats(const char* text, float* out, int maxCount)
+{
+    int n = 0;
+    char* p = const_cast<char*>(text);
+    while (n < maxCount) {
+        char* end = 0;
+        const double value = std::strtod(p, &end);
+        if (end == p) break;
+        out[n++] = static_cast<float>(value);
+        p = end;
+    }
+    return n;
+}
+
+bool applySceneKey(const char* key, const float* v, int n)
+{
+    const float a = (n > 0) ? v[0] : 0.0f;
+
+    if (std::strcmp(key, "spacing") == 0) {
+        gParams.spacing = clampF(a, 0.8f, 2.0f); return true;
+    }
+    if (std::strcmp(key, "overviewDistance") == 0) {
+        gParams.overviewDistance = clampF(a, 20.0f, 160.0f); return true;
+    }
+    if (std::strcmp(key, "ringShadowStrength") == 0) {
+        gParams.shadowStrength = clampF(a, 0.0f, 2.0f); return true;
+    }
+    if (std::strcmp(key, "ringShadowFeather") == 0) {
+        gParams.shadowFeather = clampF(a, 0.0f, 0.3f); return true;
+    }
+    if (std::strcmp(key, "ringShadowSubdiv") == 0) {
+        gParams.shadowSubdiv = clampI(static_cast<int>(a + 0.5f), 1, 8); return true;
+    }
+
+    if (std::strcmp(key, "asteroidCount") == 0) {
+        gParams.asteroidCount = clampI(static_cast<int>(a + 0.5f), 0, kAsteroidMax); return true;
+    }
+    if (std::strcmp(key, "asteroidDemoInner") == 0) {
+        gParams.asteroidDemoInner = clampF(a, 1.0f, 60.0f); return true;
+    }
+    if (std::strcmp(key, "asteroidDemoOuter") == 0) {
+        gParams.asteroidDemoOuter = clampF(a, 1.0f, 60.0f); return true;
+    }
+    if (std::strcmp(key, "asteroidAuInner") == 0) {
+        gParams.asteroidAuInner = clampF(a, 1.5f, 4.0f); return true;
+    }
+    if (std::strcmp(key, "asteroidAuOuter") == 0) {
+        gParams.asteroidAuOuter = clampF(a, 1.5f, 6.0f); return true;
+    }
+    if (std::strcmp(key, "asteroidColor") == 0 && n >= 3) {
+        for (int i = 0; i < 3; ++i) gParams.asteroidColor[i] = clampF(v[i], 0.0f, 1.0f);
+        return true;
+    }
+    if (std::strcmp(key, "asteroidPointSize") == 0) {
+        gParams.asteroidPointSize = clampF(a, 0.5f, 6.0f); return true;
+    }
+
+    if (std::strcmp(key, "kuiperCount") == 0) {
+        gParams.kuiperCount = clampI(static_cast<int>(a + 0.5f), 0, kKuiperMax); return true;
+    }
+    if (std::strcmp(key, "kuiperDemoInner") == 0) {
+        gParams.kuiperDemoInner = clampF(a, 10.0f, 120.0f); return true;
+    }
+    if (std::strcmp(key, "kuiperDemoOuter") == 0) {
+        gParams.kuiperDemoOuter = clampF(a, 10.0f, 140.0f); return true;
+    }
+    if (std::strcmp(key, "kuiperAuInner") == 0) {
+        gParams.kuiperAuInner = clampF(a, 28.0f, 60.0f); return true;
+    }
+    if (std::strcmp(key, "kuiperAuOuter") == 0) {
+        gParams.kuiperAuOuter = clampF(a, 28.0f, 120.0f); return true;
+    }
+    if (std::strcmp(key, "kuiperColor") == 0 && n >= 3) {
+        for (int i = 0; i < 3; ++i) gParams.kuiperColor[i] = clampF(v[i], 0.0f, 1.0f);
+        return true;
+    }
+    if (std::strcmp(key, "kuiperPointSize") == 0) {
+        gParams.kuiperPointSize = clampF(a, 0.5f, 6.0f); return true;
+    }
+
+    if (std::strcmp(key, "ambient") == 0 && n >= 3) {
+        for (int i = 0; i < 3; ++i) gParams.ambient[i] = clampF(v[i], 0.0f, 1.0f);
+        return true;
+    }
+    if (std::strcmp(key, "fogStart") == 0) {
+        gParams.fogStart = clampF(a, 10.0f, 1000.0f); return true;
+    }
+    if (std::strcmp(key, "fogEnd") == 0) {
+        gParams.fogEnd = clampF(a, 20.0f, 2000.0f); return true;
+    }
+
+    return false;   // 不认识的键直接忽略，不报错
+}
+
+bool loadSceneConfig(const char* path)
+{
+    std::FILE* fp = std::fopen(path, "r");
+    if (fp == 0) return false;
+
+    char line[256];
+    while (std::fgets(line, sizeof(line), fp) != 0) {
+        char* hash = std::strchr(line, '#');
+        if (hash != 0) *hash = '\0';
+
+        char* equals = std::strchr(line, '=');
+        if (equals == 0) continue;
+        *equals = '\0';
+
+        char* key = trimText(line);
+        char* value = trimText(equals + 1);
+
+        float numbers[3] = {0.0f, 0.0f, 0.0f};
+        const int count = parseFloats(value, numbers, 3);
+        if (count > 0 && applySceneKey(key, numbers, count)) {
+            ++gConfigKeyCount;
+        }
+    }
+
+    std::fclose(fp);
+    std::printf("SCENE: 读取 %s，应用 %d 项参数\n", path, gConfigKeyCount);
+    return true;
+}
+
+}  // namespace
+
+bool sceneReloadConfig()
+{
+    // 先回到内置默认值：cfg 里删掉的行才会真的恢复默认，而不是沿用上次的值
+    gParams = SceneParams();
+    gConfigKeyCount = 0;
+    ++gConfigReloadCount;
+
+    bool found = false;
+    for (int i = 0; i < kSceneConfigPathCount && !found; ++i) {
+        found = loadSceneConfig(kSceneConfigPaths[i]);
+    }
+
+    // 应用：环影质量 / 环境光 / 雾 / 小天体带 + 行星间距
+    setRingShadowTuning(gParams.shadowStrength, gParams.shadowFeather, gParams.shadowSubdiv);
+
+    const GLfloat ambient[4] = {gParams.ambient[0], gParams.ambient[1],
+                                gParams.ambient[2], 1.0f};
+    glLightModelfv(GL_LIGHT_MODEL_AMBIENT, ambient);
+
+    glFogf(GL_FOG_START, gParams.fogStart);
+    glFogf(GL_FOG_END, gParams.fogEnd);
+
+    sceneSetSpacingScale(gParams.spacing);
+
+    std::snprintf(gConfigStatus, sizeof(gConfigStatus), "scene.cfg #%d: %d keys%s",
+                  gConfigReloadCount, gConfigKeyCount,
+                  found ? "" : " (缺失,用默认)");
+    return found;
+}
+
+const char* sceneConfigStatus()
+{
+    return gConfigStatus;
 }
 
 const char* sceneBodyName(int index)

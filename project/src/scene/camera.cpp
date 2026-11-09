@@ -6,11 +6,20 @@
 namespace {
 const float PI = 3.1415926f;
 const float kMinDist = 2.5f;
-const float kMaxDist = 110.0f;
+const float kMaxDist = 160.0f;
 }
 
 // 默认站在略高一点的位置，能看清行星环的椭圆
-OrbitCamera::OrbitCamera() : yaw(20.0f), pitch(26.0f), dist(62.0f), focusTarget(0) {}
+OrbitCamera::OrbitCamera()
+    : yaw(20.0f), pitch(26.0f), dist(62.0f), overviewDist(62.0f), focusTarget(0) {}
+
+void OrbitCamera::setOverviewDistance(float value)
+{
+    if (value < kMinDist) value = kMinDist;
+    if (value > kMaxDist) value = kMaxDist;
+    overviewDist = value;
+    if (focusTarget == 0) dist = overviewDist;   // 只在全景视角下立刻生效
+}
 
 float OrbitCamera::clampPitch(float value)
 {
@@ -52,7 +61,7 @@ void OrbitCamera::reset()
         if (dist < kMinDist) dist = kMinDist;
         if (dist > kMaxDist) dist = kMaxDist;
     } else {
-        dist = 62.0f;
+        dist = overviewDist;
     }
 }
 
@@ -61,7 +70,7 @@ void OrbitCamera::setFocus(const Body* body)
     focusTarget = body;
 
     if (body == 0) {
-        dist = 62.0f;               // 全局视角：刚好装得下 31 的海王星轨道
+        dist = overviewDist;        // 全局视角：由行星间距缩放决定
         return;
     }
 
