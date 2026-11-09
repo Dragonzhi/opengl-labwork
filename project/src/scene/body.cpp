@@ -10,7 +10,7 @@ Body::Body()
     : bodyRadius(1.0f), slices(20), stacks(16),
       orbitDistance(0.0f), orbitAngle(0.0f), orbitSpeed(0.0f),
       spinAngle(0.0f), spinSpeed(0.0f), tiltDeg(0.0f),
-      shininess(24.0f), texture(0),
+      shininess(24.0f), texture(0), parent(0),
       atmoScale(1.0f), atmoAlpha(0.0f),
       ringInner(1.0f), ringOuter(1.0f), ringTexture(0)
 {
@@ -65,7 +65,35 @@ void Body::setTexture(GLuint id)
 
 void Body::addChild(Body* child)
 {
+    if (child == 0) return;
+    child->parent = this;      // 反向指针，只用于 CPU 侧算世界位置
     children.push_back(child);
+}
+
+// 与 draw() 里的矩阵栈一一对应：
+//   每一级的偏移 (orbitDistance,0,0) 都被"该级 + 它所有祖先"的公转角累积旋转。
+// 举例：月球的世界位置 = R(地球角)·(地球轨道半径) + R(地球角 + 月球角)·(月球轨道半径)。
+// 只用自己的角度会漏掉父坐标系的旋转，聚焦到卫星上就会偏。
+Vec3 Body::worldPosition() const
+{
+    // 先自底向上收集父链，再从根往下累加，才能拿到正确的累积角度
+    const Body* chain[16];
+    int depth = 0;
+    for (const Body* p = this; p != 0 && depth < 16; p = p->parent) {
+        chain[depth++] = p;
+    }
+
+    Vec3 pos;
+    float accDeg = 0.0f;
+    for (int i = depth - 1; i >= 0; --i) {
+        accDeg += chain[i]->orbitAngle;
+
+        // glRotatef(a, 0,1,0) 把 (d,0,0) 转到 (d·cos a, 0, -d·sin a)
+        const float angle = accDeg * PI / 180.0f;
+        pos.x += chain[i]->orbitDistance * std::cos(angle);
+        pos.z -= chain[i]->orbitDistance * std::sin(angle);
+    }
+    return pos;
 }
 
 void Body::enableAtmosphere(float scale, float r, float g, float b, float alpha)

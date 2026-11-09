@@ -4,6 +4,17 @@
 
 #include <vector>
 
+// 世界坐标点的最小载体：只需要位置，不需要完整的向量运算
+struct Vec3
+{
+    float x;
+    float y;
+    float z;
+
+    Vec3() : x(0.0f), y(0.0f), z(0.0f) {}
+    Vec3(float px, float py, float pz) : x(px), y(py), z(pz) {}
+};
+
 // 一个天体 = 一层"公转 + 自转"的局部坐标系，可以再挂子天体（卫星）。
 // 层级不是靠父子关系自动推导的，而是靠 glPushMatrix / glPopMatrix 的矩阵栈现算出来的。
 class Body
@@ -31,9 +42,13 @@ public:
 
     bool hasTransparent() const;
 
-    // 供场景画轨道线 / 布置灯光使用
+    // 供场景画轨道线 / 布置灯光 / 相机聚焦使用
     float orbitRadius() const { return orbitDistance; }
     float radius() const { return bodyRadius; }
+
+    // 当前帧的世界坐标位置：沿父链把每一级的"公转 + 平移"叠加起来。
+    // draw() 里的矩阵栈是 GPU 侧的同一件事，这里是 CPU 侧算一份给相机用。
+    Vec3 worldPosition() const;
 
 private:
     void applyMaterial() const;
@@ -59,6 +74,7 @@ private:
     GLuint texture;
 
     std::vector<Body*> children;   // 只引用，不拥有（对象由场景以静态方式持有）
+    const Body* parent;            // 由 addChild 反向写入，用于计算世界位置。根天体为 0
 
     float atmoScale;
     float atmoColor[3];

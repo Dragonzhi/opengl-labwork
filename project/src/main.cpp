@@ -24,6 +24,30 @@ int   gLastTimeMs = 0;
 bool  gPaused = false;
 float gTimeScale = 1.0f;
 
+// 聚焦目标：-1 表示不聚焦（全局视角），0..sceneBodyCount()-1 对应天体表
+int gFocusIndex = -1;
+
+// 切换聚焦：index 传 -1 回到全局视角。
+// 相机只改 center 和 eye，天体本身的世界坐标不动 —— 又一次"变换只改观察方式"。
+void focusBody(int index)
+{
+    if (index < -1 || index >= sceneBodyCount()) return;
+
+    gFocusIndex = index;
+    gCamera.setFocus(index < 0 ? 0 : sceneBodyAt(index));
+    glutPostRedisplay();
+}
+
+// Tab 循环：overview -> Sun -> ... -> Saturn -> overview
+void cycleFocus(int step)
+{
+    const int count = sceneBodyCount();
+    int next = gFocusIndex + step;
+    if (next >= count) next = -1;
+    if (next < -1) next = count - 1;
+    focusBody(next);
+}
+
 // 位图字体：屏幕坐标下逐字符提交
 void drawTextAt(int x, int y, const char* text)
 {
@@ -55,15 +79,23 @@ void drawHud()
 
     glColor3f(0.80f, 0.86f, 1.00f);
     drawTextAt(14, height - 26,
-               "ESC quit   SPACE pause   +/- speed   drag = orbit   wheel = zoom   R reset");
+               "ESC quit  SPACE pause  +/- speed  drag orbit  wheel zoom  R reset  1-8/TAB focus");
 
-    char line[160];
-    if (gPaused) {
-        std::snprintf(line, sizeof(line), "PAUSED   dist %.1f   yaw %.0f   pitch %.0f",
-                      gCamera.distance(), gCamera.yawDeg(), gCamera.pitchDeg());
+    char focusText[64];
+    if (gFocusIndex < 0) {
+        std::snprintf(focusText, sizeof(focusText), "overview");
     } else {
-        std::snprintf(line, sizeof(line), "speed %.2fx   dist %.1f   yaw %.0f   pitch %.0f",
-                      gTimeScale, gCamera.distance(), gCamera.yawDeg(), gCamera.pitchDeg());
+        std::snprintf(focusText, sizeof(focusText), "%s (%d/%d)",
+                      sceneBodyName(gFocusIndex), gFocusIndex + 1, sceneBodyCount());
+    }
+
+    char line[192];
+    if (gPaused) {
+        std::snprintf(line, sizeof(line), "PAUSED  focus: %s  speed %.2fx  dist %.1f",
+                      focusText, gTimeScale, gCamera.distance());
+    } else {
+        std::snprintf(line, sizeof(line), "focus: %s  speed %.2fx  dist %.1f",
+                      focusText, gTimeScale, gCamera.distance());
     }
     drawTextAt(14, height - 48, line);
 
@@ -200,7 +232,16 @@ void keyboard(unsigned char key, int, int)
     case 'r':
         gCamera.reset();
         break;
+    case '\t':                       // Tab：循环切换聚焦目标
+        cycleFocus(1);
+        break;
+    case '0':                        // 回到全局视角
+        focusBody(-1);
+        break;
     default:
+        if (key >= '1' && key <= '8') {
+            focusBody(key - '1');
+        }
         break;
     }
     glutPostRedisplay();

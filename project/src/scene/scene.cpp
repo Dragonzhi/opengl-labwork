@@ -29,6 +29,25 @@ Body gSaturn;
 GLUquadric* gQuad = 0;
 std::vector<GLuint> gTextures;
 
+// 聚焦目标表：顺序即键盘 1-8 的顺序，名字用于 HUD（位图字体只支持 ASCII）
+struct BodyEntry
+{
+    const char* name;
+    Body* body;
+};
+
+const BodyEntry gBodyTable[] = {
+    {"Sun",     &gSun},
+    {"Mercury", &gMercury},
+    {"Venus",   &gVenus},
+    {"Earth",   &gEarth},
+    {"Moon",    &gMoon},
+    {"Mars",    &gMars},
+    {"Jupiter", &gJupiter},
+    {"Saturn",  &gSaturn}
+};
+const int kBodyCount = static_cast<int>(sizeof(gBodyTable) / sizeof(gBodyTable[0]));
+
 GLuint makeTexture(const char* name, TextureKind kind, int seed,
                    int width, int height, bool repeatT)
 {
@@ -289,4 +308,21 @@ void sceneRelease()
         gluDeleteQuadric(gQuad);
         gQuad = 0;
     }
+}
+
+int sceneBodyCount()
+{
+    return kBodyCount;
+}
+
+const Body* sceneBodyAt(int index)
+{
+    if (index < 0 || index >= kBodyCount) return 0;
+    return gBodyTable[index].body;
+}
+
+const char* sceneBodyName(int index)
+{
+    if (index < 0 || index >= kBodyCount) return "";
+    return gBodyTable[index].name;
 }
