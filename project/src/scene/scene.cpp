@@ -13,9 +13,34 @@ namespace {
 const float PI = 3.1415926f;
 
 // 星空：顶点只在初始化时算一次，之后每帧只提交，不重建几何
-const int kStarCount = 2000;
+const int kStarCount = 1200;
 float gStarPosition[kStarCount * 3];
 float gStarColor[kStarCount * 3];
+
+// 小行星带（火星-木星之间）与柯伊伯带（海王星外侧）：都是"一堆点"，共用一份数据结构。
+// theta 是方位角、t 是径向参数（0=内缘 1=外缘）、y 是垂直于轨道面的偏移。
+// 半径在每次切换演示/真实间距时重算，所以这里存的是参数而不是坐标。
+struct BeltPoint
+{
+    float theta;
+    float t;
+    float y;
+};
+
+const int kAsteroidCount = 900;
+const int kKuiperCount = 1400;
+
+BeltPoint gAsteroidParams[kAsteroidCount];
+BeltPoint gKuiperParams[kKuiperCount];
+float gAsteroidPosition[kAsteroidCount * 3];
+float gKuiperPosition[kKuiperCount * 3];
+float gBeltAngle = 0.0f;        // 整条带缓慢自转，暂停时一起停
+
+// 真实半长轴区间（天文单位）：主带 2.1~3.3，柯伊伯带 33~45
+const float kAsteroidAuInner = 2.1f;
+const float kAsteroidAuOuter = 3.3f;
+const float kKuiperAuInner = 33.0f;
+const float kKuiperAuOuter = 45.0f;
 
 // 所有天体都是静态对象，生命周期贯穿整个进程，指针永远有效
 Body gSun;
@@ -31,6 +56,38 @@ Body gNeptune;
 
 // 太阳外焰：不属于任何天体，是围绕太阳中心的一层独立光效
 SunCorona gCorona;
+
+// 轨道参数集中放一张表：演示间距和真实间距共用同一份角速度，
+// 切换时只改半径，不需要重新配置天体
+struct OrbitEntry
+{
+    Body* body;
+    float demoRadius;   // 手调的"看得舒服"的间距
+    float au;           // 真实半长轴（天文单位）
+    float speed;        // 公转角速度（度/秒，演示用的，不是真实周期）
+};
+
+OrbitEntry gOrbits[] = {
+    {&gMercury,  5.0f,  0.387f, 55.0f},
+    {&gVenus,    7.2f,  0.723f, 40.0f},
+    {&gEarth,    9.6f,  1.000f, 30.0f},
+    {&gMars,    12.0f,  1.524f, 22.0f},
+    {&gJupiter, 16.0f,  5.203f, 13.0f},
+    {&gSaturn,  21.0f,  9.537f,  9.0f},
+    {&gUranus,  26.0f, 19.190f,  6.5f},
+    {&gNeptune, 31.0f, 30.070f,  5.0f}
+};
+const int kOrbitCount = static_cast<int>(sizeof(gOrbits) / sizeof(gOrbits[0]));
+
+// 真实间距的映射：r = 偏移 + 缩放 * 半长轴。
+// 偏移是为了让水星（0.387 AU）不至于落进半径 2 的太阳和外焰辉光里；
+// 缩放取到海王星刚好落在 31.8，和演示间距的最外圈齐平，切换时画面不跳。
+const float kRealOrbitOffset = 4.8f;
+const float kRealOrbitScale = 0.95f;
+// 真实间距下行星必须缩小，否则内行星会互相穿插
+const float kRealSizeScale = 0.15f;
+
+bool gRealScale = false;
 
 GLUquadric* gQuad = 0;
 std::vector<GLuint> gTextures;
@@ -84,18 +141,100 @@ void buildStarfield()
         gStarPosition[i * 3 + 1] = distance * z;
         gStarPosition[i * 3 + 2] = distance * ring * std::sin(theta);
 
-        const float brightness = 0.55f + 0.45f * (static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX));
+        // 亮度按平方分布：绝大多数星很暗，只有极少数亮星，
+        // 否则满屏亮点会盖过行星本身（背景喧宾夺主）
+        const float b = static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX);
+        const float brightness = 0.10f + 0.26f * b * b;
         gStarColor[i * 3 + 0] = brightness;
         gStarColor[i * 3 + 1] = brightness * 0.96f;
         gStarColor[i * 3 + 2] = brightness * (0.82f + 0.18f * r3);
     }
 }
 
+float rand01()
+{
+    return static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX);
+}
+
+void buildBelt(BeltPoint* params, int count, int seed, float thickness)
+{
+    std::srand(seed);
+    for (int i = 0; i < count; ++i) {
+        params[i].theta = rand01() * 2.0f * PI;
+        // t 用平方根分布：半径越大点越稀，内缘更密，像真实小天体盘
+        const float r = rand01();
+        params[i].t = 1.0f - r * r;
+        // 真实的主带/柯伊伯带都很厚，这里压扁，否则点散开就看不出"带"
+        params[i].y = (rand01() - 0.5f) * thickness;
+    }
+}
+
+// 半径随"演示 / 真实间距"重算：演示模式在相邻两颗行星之间线性铺开，
+// 真实模式直接用和行星相同的 r = 偏移 + 缩放·a(AU)
+void rebuildBeltPositions()
+{
+    for (int i = 0; i < kAsteroidCount; ++i) {
+        const float t = gAsteroidParams[i].t;
+        const float radius = gRealScale
+            ? (kRealOrbitOffset + kRealOrbitScale * (kAsteroidAuInner +
+                                                     (kAsteroidAuOuter - kAsteroidAuInner) * t))
+            : (12.9f + 1.4f * t);
+        gAsteroidPosition[i * 3 + 0] = radius * std::cos(gAsteroidParams[i].theta);
+        gAsteroidPosition[i * 3 + 1] = gAsteroidParams[i].y;
+        gAsteroidPosition[i * 3 + 2] = radius * std::sin(gAsteroidParams[i].theta);
+    }
+
+    for (int i = 0; i < kKuiperCount; ++i) {
+        const float t = gKuiperParams[i].t;
+        const float radius = gRealScale
+            ? (kRealOrbitOffset + kRealOrbitScale * (kKuiperAuInner +
+                                                     (kKuiperAuOuter - kKuiperAuInner) * t))
+            : (34.0f + 7.0f * t);
+        gKuiperPosition[i * 3 + 0] = radius * std::cos(gKuiperParams[i].theta);
+        gKuiperPosition[i * 3 + 1] = gKuiperParams[i].y;
+        gKuiperPosition[i * 3 + 2] = radius * std::sin(gKuiperParams[i].theta);
+    }
+}
+
+void buildBelts()
+{
+    buildBelt(gAsteroidParams, kAsteroidCount, 20261111, 0.5f);
+    buildBelt(gKuiperParams, kKuiperCount, 20261110, 1.2f);
+    rebuildBeltPositions();
+}
+
+void drawBelt(const float* positions, int count, float r, float g, float b)
+{
+    glDisable(GL_LIGHTING);
+    glDisable(GL_TEXTURE_2D);
+    glPointSize(1.5f);
+    glColor3f(r, g, b);
+
+    glPushMatrix();
+    glRotatef(gBeltAngle, 0.0f, 1.0f, 0.0f);
+    glBegin(GL_POINTS);
+    for (int i = 0; i < count; ++i) {
+        glVertex3fv(&positions[i * 3]);
+    }
+    glEnd();
+    glPopMatrix();
+
+    glPointSize(1.0f);
+    glEnable(GL_LIGHTING);
+}
+
+void drawBelts()
+{
+    // 主带偏暖灰（岩石），柯伊伯带偏冷蓝（冰）
+    drawBelt(gAsteroidPosition, kAsteroidCount, 0.50f, 0.46f, 0.40f);
+    drawBelt(gKuiperPosition, kKuiperCount, 0.42f, 0.46f, 0.52f);
+}
+
 void drawStarfield()
 {
     glDisable(GL_LIGHTING);
     glDisable(GL_TEXTURE_2D);
-    glPointSize(2.0f);
+    glPointSize(1.5f);
 
     glBegin(GL_POINTS);
     for (int i = 0; i < kStarCount; ++i) {
@@ -173,6 +312,11 @@ void applyLighting()
 
 void configureBodies()
 {
+    // 轨道半径与角速度统一由 gOrbits 提供，避免两处各写一份而不同步
+    for (int i = 0; i < kOrbitCount; ++i) {
+        gOrbits[i].body->setOrbit(gOrbits[i].demoRadius, gOrbits[i].speed);
+    }
+
     // ---------- 太阳：位置在原点，靠 emission 自发光 ----------
     gSun.setShape(2.0f, 32, 24);
     gSun.setOrbit(0.0f, 0.0f);
@@ -185,7 +329,6 @@ void configureBodies()
 
     // ---------- 水星 ----------
     gMercury.setShape(0.42f, 16, 12);
-    gMercury.setOrbit(5.0f, 55.0f);
     gMercury.setOrbitPhase(205.0f);
     gMercury.setSpin(18.0f, 1.0f);
     gMercury.setDiffuse(0.88f, 0.88f, 0.88f);
@@ -193,7 +336,6 @@ void configureBodies()
 
     // ---------- 金星 ----------
     gVenus.setShape(0.72f, 20, 14);
-    gVenus.setOrbit(7.2f, 40.0f);
     gVenus.setOrbitPhase(285.0f);
     gVenus.setSpin(-12.0f, 2.0f);
     gVenus.setDiffuse(1.00f, 1.00f, 1.00f);
@@ -201,7 +343,6 @@ void configureBodies()
 
     // ---------- 地球：带大气层 ----------
     gEarth.setShape(0.80f, 28, 20);
-    gEarth.setOrbit(9.6f, 30.0f);
     gEarth.setOrbitPhase(12.0f);
     gEarth.setSpin(90.0f, 23.5f);       // 90 度/秒 = 4 秒自转一圈
     gEarth.setDiffuse(0.95f, 0.95f, 0.95f);
@@ -219,7 +360,6 @@ void configureBodies()
 
     // ---------- 火星 ----------
     gMars.setShape(0.55f, 18, 12);
-    gMars.setOrbit(12.0f, 22.0f);
     gMars.setOrbitPhase(150.0f);
     gMars.setSpin(40.0f, 25.0f);
     gMars.setDiffuse(1.00f, 1.00f, 1.00f);
@@ -227,7 +367,6 @@ void configureBodies()
 
     // ---------- 木星 ----------
     gJupiter.setShape(1.70f, 28, 20);
-    gJupiter.setOrbit(16.0f, 13.0f);
     gJupiter.setOrbitPhase(255.0f);
     gJupiter.setSpin(130.0f, 3.0f);
     gJupiter.setDiffuse(1.00f, 1.00f, 1.00f);
@@ -235,16 +374,14 @@ void configureBodies()
 
     // ---------- 土星：带环 ----------
     gSaturn.setShape(1.45f, 28, 20);
-    gSaturn.setOrbit(21.0f, 9.0f);
     gSaturn.setOrbitPhase(330.0f);
     gSaturn.setSpin(110.0f, 26.7f);
     gSaturn.setDiffuse(1.00f, 1.00f, 1.00f);
     gSaturn.setTexture(makeTexture("saturn", TEX_GAS, 17, 1024, 512, false));
-    gSaturn.enableRing(1.12f, 2.27f, makeTexture("ring", TEX_RING, 18, 512, 8, true));
+    gSaturn.enableRing(1.12f, 2.27f, makeTexture("ring", TEX_RING, 18, 512, 8, true), 0.85f);
 
     // ---------- 天王星：自转轴倾角 98 度，几乎是"躺在轨道面上滚着走" ----------
     gUranus.setShape(1.05f, 24, 16);
-    gUranus.setOrbit(26.0f, 6.5f);
     gUranus.setOrbitPhase(75.0f);
     gUranus.setSpin(60.0f, 97.8f);
     gUranus.setDiffuse(1.00f, 1.00f, 1.00f);
@@ -256,7 +393,6 @@ void configureBodies()
 
     // ---------- 海王星 ----------
     gNeptune.setShape(1.00f, 24, 16);
-    gNeptune.setOrbit(31.0f, 5.0f);
     gNeptune.setOrbitPhase(190.0f);
     gNeptune.setSpin(70.0f, 28.3f);
     gNeptune.setDiffuse(1.00f, 1.00f, 1.00f);
@@ -310,6 +446,7 @@ void sceneInit()
     gluQuadricTexture(gQuad, GL_TRUE);        // 让 gluSphere 生成 s/t 纹理坐标
 
     buildStarfield();
+    buildBelts();
     configureBodies();
     gCorona.init();
 }
@@ -328,12 +465,16 @@ void sceneUpdate(float deltaTime)
 
     // 外焰也按同一套时间推进：暂停时火焰一起停，比"行星停了、火还在烧"更自洽
     gCorona.update(deltaTime);
+
+    // 柯伊伯带整体缓慢绕太阳转，让静止的场景里有一点"公转"的暗示
+    gBeltAngle = std::fmod(gBeltAngle + 0.6f * deltaTime, 360.0f);
 }
 
 void sceneDraw()
 {
     applyLighting();
     drawStarfield();
+    drawBelts();
     drawOrbits();
     drawOpaqueBodies();
     drawTransparentBodies();
@@ -369,6 +510,33 @@ const Body* sceneBodyAt(int index)
 {
     if (index < 0 || index >= kBodyCount) return 0;
     return gBodyTable[index].body;
+}
+
+void sceneSetScaleMode(bool realScale)
+{
+    gRealScale = realScale;
+
+    const float sizeScale = realScale ? kRealSizeScale : 1.0f;
+    for (int i = 0; i < kOrbitCount; ++i) {
+        OrbitEntry& entry = gOrbits[i];
+        const float radius = realScale
+            ? (kRealOrbitOffset + kRealOrbitScale * entry.au)
+            : entry.demoRadius;
+        entry.body->setOrbitRadius(radius);
+        entry.body->setRadiusScale(sizeScale);
+    }
+
+    // 月球跟着地球一起缩，绕地半径也一起缩，否则"小地球 + 远月球"很别扭
+    gMoon.setOrbitRadius(1.55f * sizeScale);
+    gMoon.setRadiusScale(sizeScale);
+
+    // 两条带也得跟着换半径，否则真实间距下它们会跑到错误的行星之间
+    rebuildBeltPositions();
+}
+
+bool sceneScaleMode()
+{
+    return gRealScale;
 }
 
 const char* sceneBodyName(int index)

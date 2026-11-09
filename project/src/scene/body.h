@@ -30,11 +30,15 @@ public:
     void setEmission(float r, float g, float b);
     void setShininess(float value);
     void setTexture(GLuint texture);
+    void setOrbitRadius(float value);      // 只改轨道半径，不动角速度（真实/演示间距切换用）
+    void setRadiusScale(float value);      // 只缩放绘制尺寸，不改轨道（同上）
     void addChild(Body* child);
 
     // 透明效果必须在所有不透明物体画完之后再画，所以单独留一个 late 通道
     void enableAtmosphere(float scale, float r, float g, float b, float alpha);
-    void enableRing(float innerScale, float outerScale, GLuint texture);
+    // shadowStrength：环投在行星上的影子强度（0 = 不算，土星 0.85，天王星环太暗可以给 0）
+    void enableRing(float innerScale, float outerScale, GLuint texture,
+                    float shadowStrength = 0.0f);
 
     void update(float deltaTime);
     void draw(GLUquadric* quad) const;
@@ -44,7 +48,7 @@ public:
 
     // 供场景画轨道线 / 布置灯光 / 相机聚焦使用
     float orbitRadius() const { return orbitDistance; }
-    float radius() const { return bodyRadius; }
+    float radius() const { return bodyRadius * radiusScale; }
 
     // 当前帧的世界坐标位置：沿父链把每一级的"公转 + 平移"叠加起来。
     // draw() 里的矩阵栈是 GPU 侧的同一件事，这里是 CPU 侧算一份给相机用。
@@ -53,9 +57,11 @@ public:
 private:
     void applyMaterial() const;
     void drawRing() const;
+    void drawShadowedSphere(float radius, int slices, int stacks) const;
     void drawAtmosphere(GLUquadric* quad) const;
 
     float bodyRadius;
+    float radiusScale;     // 1.0 = 演示尺寸；真实间距模式下整颗星缩成小点
     int slices;
     int stacks;
 
@@ -83,4 +89,5 @@ private:
     float ringInner;
     float ringOuter;
     GLuint ringTexture;
+    float ringShadowStrength;
 };

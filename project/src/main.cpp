@@ -79,7 +79,7 @@ void drawHud()
 
     glColor3f(0.80f, 0.86f, 1.00f);
     drawTextAt(14, height - 26,
-               "ESC quit  SPACE pause  +/- speed  drag orbit  wheel zoom  R reset  `~ overview");
+               "ESC quit  SPACE pause  +/- speed  mouse orbit/zoom  R reset  L scale  `~ view");
 
     char focusText[64];
     if (gFocusIndex < 0) {
@@ -89,13 +89,16 @@ void drawHud()
                       sceneBodyName(gFocusIndex), gFocusIndex + 1, sceneBodyCount());
     }
 
+    // 真实间距模式下在第二行末尾标出来，避免切过去之后忘了自己在哪个模式
+    const char* scaleText = sceneScaleMode() ? "  REAL-DIST" : "";
+
     char line[192];
     if (gPaused) {
-        std::snprintf(line, sizeof(line), "PAUSED  focus: %s  speed %.2fx  dist %.1f  keys 1-9/0/TAB",
-                      focusText, gTimeScale, gCamera.distance());
+        std::snprintf(line, sizeof(line), "PAUSED  focus: %s  speed %.2fx  dist %.1f  keys 1-9/0/TAB%s",
+                      focusText, gTimeScale, gCamera.distance(), scaleText);
     } else {
-        std::snprintf(line, sizeof(line), "focus: %s  speed %.2fx  dist %.1f  keys 1-9/0/TAB",
-                      focusText, gTimeScale, gCamera.distance());
+        std::snprintf(line, sizeof(line), "focus: %s  speed %.2fx  dist %.1f  keys 1-9/0/TAB%s",
+                      focusText, gTimeScale, gCamera.distance(), scaleText);
     }
     drawTextAt(14, height - 48, line);
 
@@ -247,6 +250,10 @@ void keyboard(unsigned char key, int, int)
     case '`':                        // 全景视角；` 和 ~ 是同一个键的两种状态
     case '~':
         focusBody(-1);
+        break;
+    case 'l':                        // 演示间距 <-> 真实间距
+    case 'L':
+        sceneSetScaleMode(!sceneScaleMode());
         break;
     default:
         if (key >= '1' && key <= '9') {

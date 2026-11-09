@@ -16,6 +16,10 @@ int sceneBodyCount();
 const Body* sceneBodyAt(int index);
 const char* sceneBodyName(int index);
 
+// 演示间距 <-> 真实间距（按天文单位单调拉伸）切换
+void sceneSetScaleMode(bool realScale);
+bool sceneScaleMode();
+
 // 外焰参数热重载：重新读 corona.cfg 并重建贴图，供 F5 调用
 bool sceneReloadCorona();
 const char* sceneCoronaStatus();
