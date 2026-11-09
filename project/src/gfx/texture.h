@@ -10,7 +10,8 @@ enum TextureKind
     TEX_EARTH,   // 类地行星：海洋 + 大陆 + 极冠
     TEX_GAS,     // 类木行星：灰度水平条带
     TEX_SUN,     // 恒星：高亮暖色斑驳
-    TEX_RING,    // 行星环：沿径向的明暗与透明度变化（带 alpha）
+    TEX_RING,    // 土星环：按真实环系半径分段的径向剖面（带 alpha）
+    TEX_RING_THIN, // 天王星环：几条极窄的暗环，其余几乎全透明（带 alpha）
     TEX_CORONA,  // 日冕：以贴图中心为极点的环形火舌（带 alpha，只做程序化）
     TEX_GLOW     // 柔和辉光：径向平滑衰减（带 alpha，只做程序化）
 };

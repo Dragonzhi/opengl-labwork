@@ -156,8 +156,11 @@ void drawOpaqueBodies()
 void drawTransparentBodies()
 {
     glEnable(GL_LIGHTING);
+    // 固定顺序里加进天王星：它的环和本体一样是"躺着"的，
+    // 在默认视角下几乎侧对相机，只剩一条细线
     gEarth.drawTransparent(gQuad);
     gSaturn.drawTransparent(gQuad);
+    gUranus.drawTransparent(gQuad);
 }
 
 // 光源位置必须在视图矩阵就位之后提交：
@@ -182,7 +185,7 @@ void configureBodies()
 
     // ---------- 水星 ----------
     gMercury.setShape(0.42f, 16, 12);
-    gMercury.setOrbit(4.2f, 55.0f);
+    gMercury.setOrbit(5.0f, 55.0f);
     gMercury.setOrbitPhase(205.0f);
     gMercury.setSpin(18.0f, 1.0f);
     gMercury.setDiffuse(0.88f, 0.88f, 0.88f);
@@ -190,7 +193,7 @@ void configureBodies()
 
     // ---------- 金星 ----------
     gVenus.setShape(0.72f, 20, 14);
-    gVenus.setOrbit(5.9f, 40.0f);
+    gVenus.setOrbit(7.2f, 40.0f);
     gVenus.setOrbitPhase(285.0f);
     gVenus.setSpin(-12.0f, 2.0f);
     gVenus.setDiffuse(1.00f, 1.00f, 1.00f);
@@ -198,7 +201,7 @@ void configureBodies()
 
     // ---------- 地球：带大气层 ----------
     gEarth.setShape(0.80f, 28, 20);
-    gEarth.setOrbit(7.8f, 30.0f);
+    gEarth.setOrbit(9.6f, 30.0f);
     gEarth.setOrbitPhase(12.0f);
     gEarth.setSpin(90.0f, 23.5f);       // 90 度/秒 = 4 秒自转一圈
     gEarth.setDiffuse(0.95f, 0.95f, 0.95f);
@@ -216,7 +219,7 @@ void configureBodies()
 
     // ---------- 火星 ----------
     gMars.setShape(0.55f, 18, 12);
-    gMars.setOrbit(9.8f, 22.0f);
+    gMars.setOrbit(12.0f, 22.0f);
     gMars.setOrbitPhase(150.0f);
     gMars.setSpin(40.0f, 25.0f);
     gMars.setDiffuse(1.00f, 1.00f, 1.00f);
@@ -224,7 +227,7 @@ void configureBodies()
 
     // ---------- 木星 ----------
     gJupiter.setShape(1.70f, 28, 20);
-    gJupiter.setOrbit(12.4f, 13.0f);
+    gJupiter.setOrbit(16.0f, 13.0f);
     gJupiter.setOrbitPhase(255.0f);
     gJupiter.setSpin(130.0f, 3.0f);
     gJupiter.setDiffuse(1.00f, 1.00f, 1.00f);
@@ -232,24 +235,28 @@ void configureBodies()
 
     // ---------- 土星：带环 ----------
     gSaturn.setShape(1.45f, 28, 20);
-    gSaturn.setOrbit(16.5f, 9.0f);
+    gSaturn.setOrbit(21.0f, 9.0f);
     gSaturn.setOrbitPhase(330.0f);
     gSaturn.setSpin(110.0f, 26.7f);
     gSaturn.setDiffuse(1.00f, 1.00f, 1.00f);
     gSaturn.setTexture(makeTexture("saturn", TEX_GAS, 17, 1024, 512, false));
-    gSaturn.enableRing(1.15f, 1.95f, makeTexture("ring", TEX_RING, 18, 512, 8, true));
+    gSaturn.enableRing(1.12f, 2.27f, makeTexture("ring", TEX_RING, 18, 512, 8, true));
 
     // ---------- 天王星：自转轴倾角 98 度，几乎是"躺在轨道面上滚着走" ----------
     gUranus.setShape(1.05f, 24, 16);
-    gUranus.setOrbit(20.0f, 6.5f);
+    gUranus.setOrbit(26.0f, 6.5f);
     gUranus.setOrbitPhase(75.0f);
     gUranus.setSpin(60.0f, 97.8f);
     gUranus.setDiffuse(1.00f, 1.00f, 1.00f);
     gUranus.setTexture(makeTexture("uranus", TEX_GAS, 19, 512, 256, false));
+    // 环面跟着 97.8 度的自转轴一起躺下：drawRing 画在倾角之后的局部坐标系里，
+    // 所以这里不需要为"躺着"写任何额外代码
+    gUranus.enableRing(1.63f, 2.05f,
+                       makeTexture("uranus_ring", TEX_RING_THIN, 23, 512, 8, true));
 
     // ---------- 海王星 ----------
     gNeptune.setShape(1.00f, 24, 16);
-    gNeptune.setOrbit(23.5f, 5.0f);
+    gNeptune.setOrbit(31.0f, 5.0f);
     gNeptune.setOrbitPhase(190.0f);
     gNeptune.setSpin(70.0f, 28.3f);
     gNeptune.setDiffuse(1.00f, 1.00f, 1.00f);
@@ -269,8 +276,8 @@ void sceneInit()
     glEnable(GL_FOG);
     glFogi(GL_FOG_MODE, GL_LINEAR);
     glFogfv(GL_FOG_COLOR, fogColor);
-    glFogf(GL_FOG_START, 60.0f);
-    glFogf(GL_FOG_END, 320.0f);
+    glFogf(GL_FOG_START, 90.0f);
+    glFogf(GL_FOG_END, 380.0f);
 
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);

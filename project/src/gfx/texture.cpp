@@ -249,13 +249,61 @@ void buildProcedural(TextureKind kind, int seed, int width, int height,
                 break;
             }
             case TEX_RING: {
-                // u 是径向：条纹沿半径变化，v 方向基本不变
-                const float n = fbm(u * 24.0f, 0.5f, 24, seed, 2);
-                const float fine = std::sin(u * 90.0f + n * 6.0f);
-                float alpha = 0.30f + 0.55f * n + 0.18f * fine;
+                // u 是径向：0=内缘，1=外缘。几何上环带跨 1.12R~2.27R，
+                // 所以先把 u 换算回"以行星半径为单位的真实半径"，
+                // 再按土星环系的分段剖面给 alpha——均匀噪声画出来的环是
+                // 一块灰板，只有分段才有"暗缝 + 亮带"的辨识度。
+                const float R = 1.12f + u * 1.15f;
+
+                // D 环 1.12-1.24 / C 环 1.24-1.53 / B 环 1.53-1.95 /
+                // Cassini 环缝 1.95-2.03 / A 环 2.03-2.27
+                float alpha = 0.08f;
+                alpha += (0.26f - alpha) * smoothstep(1.22f, 1.26f, R);
+                alpha += (0.88f - alpha) * smoothstep(1.51f, 1.56f, R);
+                alpha += (0.05f - alpha) * smoothstep(1.94f, 1.96f, R);
+                alpha += (0.58f - alpha) * smoothstep(2.02f, 2.05f, R);
+
+                // 细结构：环里本来就有成百上千条细密小环，用高频噪声叠上去；
+                // 没有这一层，B 环就是一整块均匀的平板
+                const float n = fbm(u * 60.0f, 0.5f, 60, seed, 3);
+                alpha *= 0.70f + 0.55f * n;
+
+                // Encke 环缝：A 环里一条很窄的暗缝，位置约 2.21R
+                if (R > 2.20f && R < 2.225f) alpha *= 0.15f;
+
                 if (alpha < 0.0f) alpha = 0.0f;
                 if (alpha > 1.0f) alpha = 1.0f;
-                px[0] = 228; px[1] = 210; px[2] = 176;
+                const float shade = 0.80f + 0.20f * n;
+                px[0] = static_cast<unsigned char>(232 * shade);
+                px[1] = static_cast<unsigned char>(222 * shade);
+                px[2] = static_cast<unsigned char>(196 * shade);
+                px[3] = static_cast<unsigned char>(255 * alpha);
+                break;
+            }
+            case TEX_RING_THIN: {
+                // 天王星环：13 条又窄又暗的环，ε 环最宽也最密。
+                // 几何跨 1.63R~2.05R，这里只画主要的几条，宽度按真实比例缩。
+                const float R = 1.63f + u * 0.42f;
+                // 真实的天王星环比土星环暗一个数量级，而且几乎侧对地球。
+                // 这里把 alpha 和亮度都放大到"演示能看清"的档位，
+                // 否则在 800x600 下整圈环只有一两个像素，等于没画。
+                static const float kBand[6][3] = {
+                    {1.665f, 0.008f, 0.30f},   // 6 / 5 / 4 环
+                    {1.700f, 0.007f, 0.34f},   // β
+                    {1.780f, 0.006f, 0.36f},   // η
+                    {1.800f, 0.006f, 0.36f},   // γ
+                    {1.830f, 0.008f, 0.42f},   // δ
+                    {2.000f, 0.028f, 0.85f}    // ε：最宽最密的一条
+                };
+                float alpha = 0.0f;
+                for (int k = 0; k < 6; ++k) {
+                    const float t = (R - kBand[k][0]) / kBand[k][1];
+                    const float g = std::exp(-t * t);
+                    const float a = kBand[k][2] * g;
+                    if (a > alpha) alpha = a;
+                }
+                if (alpha > 1.0f) alpha = 1.0f;
+                px[0] = 196; px[1] = 200; px[2] = 210;
                 px[3] = static_cast<unsigned char>(255 * alpha);
                 break;
             }
