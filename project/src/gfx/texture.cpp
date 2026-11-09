@@ -380,12 +380,14 @@ GLuint createTexture(const char* name, TextureKind kind, int seed,
     Bitmap bmp;
     char path[512] = {};
 
-    // 运行目录既可能是 project/ 也可能是 project/build/，两处都试一下
-    std::snprintf(path, sizeof(path), "assets/%s.bmp", name);
-    bool loaded = loadBmp(path, bmp);
-
-    if (!loaded) {
-        std::snprintf(path, sizeof(path), "../assets/%s.bmp", name);
+    // 贴图相对"工作目录"找，而不是相对 exe：三种常见启动方式都要能命中
+    //   仓库根目录   -> project/assets/
+    //   project/     -> assets/
+    //   project/build-> ../assets/
+    static const char* const kAssetRoots[] = {"project/assets", "assets", "../assets"};
+    bool loaded = false;
+    for (std::size_t i = 0; i < sizeof(kAssetRoots) / sizeof(kAssetRoots[0]) && !loaded; ++i) {
+        std::snprintf(path, sizeof(path), "%s/%s.bmp", kAssetRoots[i], name);
         loaded = loadBmp(path, bmp);
     }
 

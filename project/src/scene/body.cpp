@@ -133,7 +133,7 @@ void Body::applyMaterial() const
 {
     // ambient 系数给得偏高：太空里没有别的补光，纯按物理会让背光面完全死黑，
     // 这里用一点环境反射把暗面抬到"看得见"的程度，明暗交界仍然保留
-    const GLfloat ambient[4]  = {diffuse[0] * 0.40f, diffuse[1] * 0.40f, diffuse[2] * 0.40f, 1.0f};
+    const GLfloat ambient[4]  = {diffuse[0] * 0.55f, diffuse[1] * 0.55f, diffuse[2] * 0.55f, 1.0f};
     const GLfloat diffuseV[4] = {diffuse[0], diffuse[1], diffuse[2], 1.0f};
     const GLfloat specular[4] = {0.40f, 0.40f, 0.40f, 1.0f};
     const GLfloat emissionV[4] = {emission[0], emission[1], emission[2], 1.0f};

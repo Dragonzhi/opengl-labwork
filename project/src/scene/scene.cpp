@@ -177,16 +177,16 @@ void configureBodies()
     gMercury.setOrbit(4.2f, 55.0f);
     gMercury.setOrbitPhase(205.0f);
     gMercury.setSpin(18.0f, 1.0f);
-    gMercury.setDiffuse(0.62f, 0.58f, 0.54f);
-    gMercury.setTexture(makeTexture("mercury", TEX_ROCKY, 11, 128, 64, false));
+    gMercury.setDiffuse(0.88f, 0.88f, 0.88f);
+    gMercury.setTexture(makeTexture("mercury", TEX_ROCKY, 11, 512, 256, false));
 
     // ---------- 金星 ----------
     gVenus.setShape(0.72f, 20, 14);
     gVenus.setOrbit(5.9f, 40.0f);
     gVenus.setOrbitPhase(285.0f);
     gVenus.setSpin(-12.0f, 2.0f);
-    gVenus.setDiffuse(0.92f, 0.84f, 0.64f);
-    gVenus.setTexture(makeTexture("venus", TEX_GAS, 12, 128, 64, false));
+    gVenus.setDiffuse(1.00f, 1.00f, 1.00f);
+    gVenus.setTexture(makeTexture("venus", TEX_GAS, 12, 512, 256, false));
 
     // ---------- 地球：带大气层 ----------
     gEarth.setShape(0.80f, 28, 20);
@@ -195,15 +195,15 @@ void configureBodies()
     gEarth.setSpin(90.0f, 23.5f);       // 90 度/秒 = 4 秒自转一圈
     gEarth.setDiffuse(0.95f, 0.95f, 0.95f);
     gEarth.setShininess(40.0f);
-    gEarth.setTexture(makeTexture("earth", TEX_EARTH, 13, 256, 128, false));
-    gEarth.enableAtmosphere(1.06f, 0.30f, 0.55f, 1.00f, 0.30f);
+    gEarth.setTexture(makeTexture("earth", TEX_EARTH, 13, 1024, 512, false));
+    gEarth.enableAtmosphere(1.05f, 0.32f, 0.58f, 1.00f, 0.20f);
 
     // ---------- 月球：地球的子天体，验证两级层级变换 ----------
     gMoon.setShape(0.22f, 12, 10);
     gMoon.setOrbit(1.55f, 80.0f);
     gMoon.setSpin(80.0f, 6.0f);         // 潮汐锁定：自转与公转同周期
-    gMoon.setDiffuse(0.72f, 0.72f, 0.70f);
-    gMoon.setTexture(makeTexture("moon", TEX_ROCKY, 14, 128, 64, false));
+    gMoon.setDiffuse(0.95f, 0.95f, 0.95f);
+    gMoon.setTexture(makeTexture("moon", TEX_ROCKY, 14, 512, 256, false));
     gEarth.addChild(&gMoon);
 
     // ---------- 火星 ----------
@@ -211,24 +211,24 @@ void configureBodies()
     gMars.setOrbit(9.8f, 22.0f);
     gMars.setOrbitPhase(150.0f);
     gMars.setSpin(40.0f, 25.0f);
-    gMars.setDiffuse(0.84f, 0.44f, 0.28f);
-    gMars.setTexture(makeTexture("mars", TEX_ROCKY, 15, 128, 64, false));
+    gMars.setDiffuse(1.00f, 1.00f, 1.00f);
+    gMars.setTexture(makeTexture("mars", TEX_ROCKY, 15, 512, 256, false));
 
     // ---------- 木星 ----------
     gJupiter.setShape(1.70f, 28, 20);
     gJupiter.setOrbit(12.4f, 13.0f);
     gJupiter.setOrbitPhase(255.0f);
     gJupiter.setSpin(130.0f, 3.0f);
-    gJupiter.setDiffuse(0.88f, 0.74f, 0.58f);
-    gJupiter.setTexture(makeTexture("jupiter", TEX_GAS, 16, 256, 128, false));
+    gJupiter.setDiffuse(1.00f, 1.00f, 1.00f);
+    gJupiter.setTexture(makeTexture("jupiter", TEX_GAS, 16, 1024, 512, false));
 
     // ---------- 土星：带环 ----------
     gSaturn.setShape(1.45f, 28, 20);
     gSaturn.setOrbit(16.5f, 9.0f);
     gSaturn.setOrbitPhase(330.0f);
     gSaturn.setSpin(110.0f, 26.7f);
-    gSaturn.setDiffuse(0.92f, 0.85f, 0.66f);
-    gSaturn.setTexture(makeTexture("saturn", TEX_GAS, 17, 256, 128, false));
+    gSaturn.setDiffuse(1.00f, 1.00f, 1.00f);
+    gSaturn.setTexture(makeTexture("saturn", TEX_GAS, 17, 1024, 512, false));
     gSaturn.enableRing(1.15f, 1.95f, makeTexture("ring", TEX_RING, 18, 512, 8, true));
 }
 
@@ -265,7 +265,7 @@ void sceneInit()
     glLightfv(GL_LIGHT0, GL_AMBIENT, lightAmbient);
 
     // 全局环境光：让背光面不至于纯黑，否则行星暗面完全看不见
-    const GLfloat modelAmbient[4] = {0.22f, 0.24f, 0.32f, 1.0f};
+    const GLfloat modelAmbient[4] = {0.40f, 0.42f, 0.54f, 1.0f};
     glLightModelfv(GL_LIGHT_MODEL_AMBIENT, modelAmbient);
 
     // 纹理颜色与材质/光照结果相乘（默认就是 MODULATE，这里显式写出来）
