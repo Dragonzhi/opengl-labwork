@@ -8,7 +8,13 @@ set(FREEGLUT_BUILD_STATIC_LIBS ON CACHE BOOL "" FORCE)
 set(FREEGLUT_BUILD_DEMOS OFF CACHE BOOL "" FORCE)
 set(FREEGLUT_INSTALL OFF CACHE BOOL "" FORCE)
 add_subdirectory(third_party/freeglut EXCLUDE_FROM_ALL)
-add_executable(triangle src/main.cpp)
+add_executable(triangle
+    src/main.cpp
+    src/gfx/texture.cpp
+    src/scene/camera.cpp
+    src/scene/body.cpp
+    src/scene/scene.cpp
+)
 target_include_directories(triangle PRIVATE third_party/freeglut/include)
 target_link_libraries(triangle PRIVATE freeglut_static opengl32 glu32)
 if(MINGW)

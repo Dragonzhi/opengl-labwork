@@ -1,287 +1,243 @@
 #include <GL/freeglut.h>
+
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
-#include <cmath>
 
-const float PI = 3.1415926f;
+#include "scene/camera.h"
+#include "scene/scene.h"
 
-/** 烟雾测试开关 */
-static bool smokeTest = false;
-static int testResult = 0;
+namespace {
 
-// GLU 二次曲面的“绘制设置”句柄：它不保存几何，只保存绘制风格（填充/线框）、
-// 法线生成方式、是否生成纹理坐标等状态，供 gluSphere / gluCylinder / gluDisk 共用。
-// 用 gluNewQuadric() 创建，用 gluDeleteQuadric() 释放。
-GLUquadric* quad;
+bool  gSmokeTest = false;          // --smoke-test 无交互自检
+int   gTestResult = 0;             // 自检结果作为进程退出码
 
-/** 鼠标拖动状态 */
-static bool dragging = false;
-static int lastMouseX = 0;
-static int lastMouseY = 0;
+OrbitCamera gCamera;
 
-/** 上一帧时间戳 */
-static int lastTimeMs = 0;
+// 鼠标拖动状态
+bool gDragging = false;
+int  gLastMouseX = 0;
+int  gLastMouseY = 0;
 
-class OrbitEye
+// 时间系统
+int   gLastTimeMs = 0;
+bool  gPaused = false;
+float gTimeScale = 1.0f;
+
+// 位图字体：屏幕坐标下逐字符提交
+void drawTextAt(int x, int y, const char* text)
 {
-private:
-    float yaw;    // 方位角（度），绕 +Y 轴
-    float pitch;  // 俯仰角（度），相对 XZ 平面
-    float dist;   // 相机到焦点的距离
-
-    // 守住俯仰角不变量：避免视线与 up 向量接近平行
-    static float clampPitch(float value)
-    {
-        const float limit = 85.0f;
-        if (value < -limit) return -limit;
-        if (value > limit) return limit;
-        return value;
-    }
-
-    // 守住方位角不变量：把角度折回 (-180, 180]
-    static float wrapYaw(float value)
-    {
-        if (value > 180.0f) value -= 360.0f;
-        if (value < -180.0f) value += 360.0f;
-        return value;
-    }
-
-public:
-    OrbitEye() : yaw(0.0f), pitch(14.0f), dist(8.25f) {}
-
-    // 参数是角度增量（不是像素），鼠标灵敏度留在回调里换算
-    void orbit(float deltaYawDeg, float deltaPitchDeg)
-    {
-        yaw = wrapYaw(yaw + deltaYawDeg);
-        pitch = clampPitch(pitch + deltaPitchDeg);
-    }
-
-    // factor < 1 拉近，factor > 1 拉远
-    void zoom(float factor)
-    {
-        dist *= factor;
-        if (dist < 2.0f) dist = 2.0f;
-        if (dist > 60.0f) dist = 60.0f;
-    }
-
-    void reset()
-    {
-        yaw = 0.0f;
-        pitch = 14.0f;
-        dist = 8.25f;
-    }
-
-    // 由球坐标算出 eye，再把视图矩阵提交给固定管线
-    void apply() const
-    {
-        const float yawRad = yaw * PI / 180.0f;
-        const float pitchRad = pitch * PI / 180.0f;
-        const float horizontal = dist * std::cos(pitchRad);
-
-        const float eyeX = horizontal * std::sin(yawRad);
-        const float eyeY = dist * std::sin(pitchRad);
-        const float eyeZ = horizontal * std::cos(yawRad);
-
-        gluLookAt(eyeX, eyeY, eyeZ,
-                  0.0f, 0.0f, 0.0f,
-                  0.0f, 1.0f, 0.0f);
-    }
-
-    float yawDeg() const { return yaw; }
-    float pitchDeg() const { return pitch; }
-    float distance() const { return dist; }
-};
-
-class Planet
-{
-public:
-    Planet(float radius, float orbitRadius, float orbitSpeed, float spinSpeed, float r, float g, float b)
-    : radius(radius), orbitRadius(orbitRadius), orbitAngle(0.0f), orbitSpeed(orbitSpeed), spinSpeed(spinSpeed)
-    {
-        spinAngle = 0.0f;
-        color[0] = r;
-        color[1] = g;
-        color[2] = b;
-    }
-
-    void draw(GLUquadric* quad) const
-    {
-        glPushMatrix();
-        glRotatef(orbitAngle, 0.0f, 1.0f, 0.0f);        // 公转
-        glTranslatef(orbitRadius, 0.0f, 0.0f);        // 到轨道的位置
-        glRotatef(spinAngle, 0.0f, 1.0f, 0.0f);        // 自转
-        
-        glColor3fv(color);
-        gluSphere(quad, radius, 16, 8);
-
-        glPushMatrix();
-        glTranslatef(radius * 0.98f, 0.0f, 0.0f);
-        glColor3f(0.15f, 0.75f, 0.35f);
-        gluSphere(quad, radius * 0.12f, 8, 6);
-        glPopMatrix();
-
-        glPopMatrix();
-    }
-
-    void update(float deltaTime)
-    {
-        orbitAngle += deltaTime * orbitSpeed;
-        spinAngle += deltaTime * spinSpeed;
-        if (orbitAngle >= 360.0f) orbitAngle -= 360.0f;
-        if (spinAngle >= 360.0f) spinAngle -= 360.0f;
-    }
-
-private:
-    float radius;
-    float orbitRadius;
-    float orbitAngle;
-    float orbitSpeed;
-    float color[3];
-    float spinAngle;
-    float spinSpeed;        // 自转速度（度/秒）
-};
-
-/** 对象实例化 */
-static OrbitEye gEye;
-static Planet Earth(0.3f, 3.0f, 30.0f, 90.0f, 0.0f, 0.5f, 1.0f);
-
-void timer(int) 
-{
-    const int now = glutGet(GLUT_ELAPSED_TIME);
-     float deltaTime = (now - lastTimeMs) * 0.001f;
-    lastTimeMs = now;
-    if (deltaTime > 0.1f) deltaTime = 0.1f; // 防止窗口失焦后一次跳太大
-
-    Earth.update(deltaTime);
-    glutPostRedisplay();
-    glutTimerFunc(16, timer, 0);
-}
-
-void mouse(int button, int state, int x, int y)
-{
-    if (button == GLUT_LEFT_BUTTON) {
-        if (state == GLUT_DOWN) {
-            dragging = true;
-            lastMouseX = x;
-            lastMouseY = y;
-        } else {
-            dragging = false;
-        }
-        return;
-    }
-    
-    if (state != GLUT_DOWN) return;
-    
-    if (button == 3) {
-        gEye.zoom(0.9f);
-        glutPostRedisplay();
-    } else if (button == 4) {
-        gEye.zoom(1.1f);
-        glutPostRedisplay();
+    glRasterPos2i(x, y);
+    for (const char* c = text; *c != '\0'; ++c) {
+        glutBitmapCharacter(GLUT_BITMAP_9_BY_15, *c);
     }
 }
 
-void motion(int x, int y)
+// HUD 用一次性正交投影画在屏幕坐标系里，画完必须把矩阵和状态还原
+void drawHud()
 {
-    if (dragging) {
-        const float deltaX = x - lastMouseX;
-        const float deltaY = y - lastMouseY;
-        lastMouseX = x;
-        lastMouseY = y;
-        gEye.orbit(-deltaX * 0.5f, deltaY * 0.5f); // TODO 0.5 是灵敏度控制参数，目前为硬编码
-        glutPostRedisplay();
-    }
-}
+    const int width = glutGet(GLUT_WINDOW_WIDTH);
+    const int height = glutGet(GLUT_WINDOW_HEIGHT);
 
-/** 绘制轨道 */
-static void drawOrbit(float radius, int segments)
-{
-    glColor3f(0.35f, 0.45f, 0.65f);
-    glBegin(GL_LINE_LOOP);
-    for (int i = 0; i < segments; ++i) {
-        const float a = 2.0f * PI * i / segments;
-        glVertex3f(radius * std::cos(a), 0.0f, radius * std::sin(a));
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glLoadIdentity();
+    gluOrtho2D(0.0, static_cast<double>(width), 0.0, static_cast<double>(height));
+
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadIdentity();
+
+    glDisable(GL_LIGHTING);
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_TEXTURE_2D);
+    glDisable(GL_FOG);
+
+    glColor3f(0.80f, 0.86f, 1.00f);
+    drawTextAt(14, height - 26,
+               "ESC quit   SPACE pause   +/- speed   drag = orbit   wheel = zoom   R reset");
+
+    char line[160];
+    if (gPaused) {
+        std::snprintf(line, sizeof(line), "PAUSED   dist %.1f   yaw %.0f   pitch %.0f",
+                      gCamera.distance(), gCamera.yawDeg(), gCamera.pitchDeg());
+    } else {
+        std::snprintf(line, sizeof(line), "speed %.2fx   dist %.1f   yaw %.0f   pitch %.0f",
+                      gTimeScale, gCamera.distance(), gCamera.yawDeg(), gCamera.pitchDeg());
     }
-    glEnd();
+    drawTextAt(14, height - 48, line);
+
+    glEnable(GL_FOG);
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_LIGHTING);
+
+    glPopMatrix();
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+    glMatrixMode(GL_MODELVIEW);
 }
 
 void display()
 {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
-    
-    gEye.apply();
+    gCamera.apply();     // 先摆相机，场景所有物体的世界坐标都不动
 
-    glColor3f(0.9f, 0.8f, 0.2f);
-    gluSphere(quad, 1.0f, 24, 12);
+    sceneDraw();
+    drawHud();
 
-    drawOrbit(3.0f, 96);
-    Earth.draw(quad);
-    
-    if (smokeTest) {
+    if (gSmokeTest) {
+        // 自检契约：读后缓冲中心像素，太阳位于画面中心，因此应当命中太阳
         unsigned char pixel[3] = {};
         glReadBuffer(GL_BACK);
-        glReadPixels(glutGet(GLUT_WINDOW_WIDTH)/2,
-                     glutGet(GLUT_WINDOW_HEIGHT)/2, 1, 1,
-                     GL_RGB, GL_UNSIGNED_BYTE, pixel);
+        glReadPixels(glutGet(GLUT_WINDOW_WIDTH) / 2,
+                     glutGet(GLUT_WINDOW_HEIGHT) / 2,
+                     1, 1, GL_RGB, GL_UNSIGNED_BYTE, pixel);
+
         const GLenum error = glGetError();
-        const bool ok = error == GL_NO_ERROR && pixel[0] > 30 && pixel[1] > 30 && pixel[2] > 30;
+        const bool ok = error == GL_NO_ERROR &&
+                        pixel[0] > 30 && pixel[1] > 30 && pixel[2] > 30;
         std::printf("RENDER_TEST: %s; center RGB=%u,%u,%u; GL error=%u\n",
                     ok ? "PASS" : "FAIL", pixel[0], pixel[1], pixel[2], error);
-        testResult = ok ? 0 : 2;
+        gTestResult = ok ? 0 : 2;
     }
+
     glutSwapBuffers();
-    if (smokeTest) glutLeaveMainLoop();
+
+    if (gSmokeTest) {
+        glutLeaveMainLoop();
+    }
 }
 
 void reshape(int width, int height)
 {
     if (height < 1) height = 1;
     glViewport(0, 0, width, height);
+
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    const double aspect = static_cast<double>(width) / height;
-    gluPerspective(45.0, aspect, 0.1, 100.0);
+    const double aspect = static_cast<double>(width) / static_cast<double>(height);
+    gluPerspective(45.0, aspect, 0.1, 400.0);   // 远裁剪面要包住星空与雾
+
     glMatrixMode(GL_MODELVIEW);
+}
+
+void timer(int)
+{
+    const int now = glutGet(GLUT_ELAPSED_TIME);
+    float deltaTime = static_cast<float>(now - gLastTimeMs) * 0.001f;
+    gLastTimeMs = now;
+
+    // 只钳制上限：窗口失焦回来后 dt 会突然变大，不限就会"跳帧"
+    if (deltaTime > 0.1f) deltaTime = 0.1f;
+
+    if (!gPaused) {
+        sceneUpdate(deltaTime * gTimeScale);
+    }
+
+    glutPostRedisplay();
+    glutTimerFunc(16, timer, 0);
+}
+
+void mouse(int button, int state, int x, int y)
+{
+    // 左键必须完整处理 DOWN 和 UP，否则永远松不开拖动
+    if (button == GLUT_LEFT_BUTTON) {
+        if (state == GLUT_DOWN) {
+            gDragging = true;
+            gLastMouseX = x;
+            gLastMouseY = y;
+        } else {
+            gDragging = false;
+        }
+        return;
+    }
+
+    if (state != GLUT_DOWN) return;
+
+    // freeglut：滚轮在 mouse 回调里表现为 button 3(上)/4(下)
+    if (button == 3) {
+        gCamera.zoom(0.9f);
+        glutPostRedisplay();
+    } else if (button == 4) {
+        gCamera.zoom(1.1f);
+        glutPostRedisplay();
+    }
+}
+
+void motion(int x, int y)
+{
+    if (!gDragging) return;
+
+    const float deltaX = static_cast<float>(x - gLastMouseX);
+    const float deltaY = static_cast<float>(y - gLastMouseY);
+    gLastMouseX = x;
+    gLastMouseY = y;
+
+    // 屏幕横向拖动改方位角，纵向拖动改俯仰角；0.5 是灵敏度
+    gCamera.orbit(-deltaX * 0.5f, deltaY * 0.5f);
+    glutPostRedisplay();
 }
 
 void keyboard(unsigned char key, int, int)
 {
-    if (key == 27) {
+    switch (key) {
+    case 27:                                   // ESC
         glutLeaveMainLoop();
+        break;
+    case ' ':
+        gPaused = !gPaused;
+        break;
+    case '+':
+    case '=':
+        gTimeScale = std::min(gTimeScale * 2.0f, 8.0f);
+        break;
+    case '-':
+        gTimeScale = std::max(gTimeScale * 0.5f, 0.125f);
+        break;
+    case 'r':
+        gCamera.reset();
+        break;
+    default:
+        break;
     }
+    glutPostRedisplay();
 }
+
+}  // namespace
 
 int main(int argc, char** argv)
 {
-    smokeTest = argc > 1 && std::strcmp(argv[1], "--smoke-test") == 0;
-    if (smokeTest) argc = 1;
+    gSmokeTest = argc > 1 && std::strcmp(argv[1], "--smoke-test") == 0;
+    if (gSmokeTest) argc = 1;
+
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
     glutInitWindowSize(800, 600);
-    glutCreateWindow("OpenGL Class - freeglut - ESC to exit");
-    
-    quad = gluNewQuadric();
-    gluQuadricDrawStyle(quad, GLU_FILL);
-    gluQuadricNormals(quad, GLU_SMOOTH);
+    glutCreateWindow("OpenGL Class - 3D Solar System");
 
-    glEnable(GL_DEPTH_TEST);
-    glutSetOption(GLUT_ACTION_ON_WINDOW_CLOSE, GLUT_ACTION_GLUTMAINLOOP_RETURNS);
     std::printf("Vendor:   %s\nRenderer: %s\nVersion:  %s\n",
-                glGetString(GL_VENDOR), glGetString(GL_RENDERER), glGetString(GL_VERSION));
-    glClearColor(0.08f, 0.10f, 0.15f, 1.0f);
+                reinterpret_cast<const char*>(glGetString(GL_VENDOR)),
+                reinterpret_cast<const char*>(glGetString(GL_RENDERER)),
+                reinterpret_cast<const char*>(glGetString(GL_VERSION)));
+
+    sceneInit();
+
     glutDisplayFunc(display);
     glutReshapeFunc(reshape);
     glutMouseFunc(mouse);
     glutMotionFunc(motion);
     glutKeyboardFunc(keyboard);
-    
-    if (!smokeTest) {
-        lastTimeMs = glutGet(GLUT_ELAPSED_TIME);
+
+    if (!gSmokeTest) {
+        gLastTimeMs = glutGet(GLUT_ELAPSED_TIME);
         glutTimerFunc(16, timer, 0);
     }
 
     glutMainLoop();
-    return testResult;
+
+    sceneRelease();
+    return gTestResult;
 }
