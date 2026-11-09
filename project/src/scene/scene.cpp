@@ -26,6 +26,8 @@ Body gMoon;
 Body gMars;
 Body gJupiter;
 Body gSaturn;
+Body gUranus;
+Body gNeptune;
 
 // 太阳外焰：不属于任何天体，是围绕太阳中心的一层独立光效
 SunCorona gCorona;
@@ -48,7 +50,9 @@ const BodyEntry gBodyTable[] = {
     {"Moon",    &gMoon},
     {"Mars",    &gMars},
     {"Jupiter", &gJupiter},
-    {"Saturn",  &gSaturn}
+    {"Saturn",  &gSaturn},
+    {"Uranus",  &gUranus},
+    {"Neptune", &gNeptune}
 };
 const int kBodyCount = static_cast<int>(sizeof(gBodyTable) / sizeof(gBodyTable[0]));
 
@@ -128,6 +132,8 @@ void drawOrbits()
     drawOrbitRing(gMars.orbitRadius());
     drawOrbitRing(gJupiter.orbitRadius());
     drawOrbitRing(gSaturn.orbitRadius());
+    drawOrbitRing(gUranus.orbitRadius());
+    drawOrbitRing(gNeptune.orbitRadius());
 
     glEnable(GL_LIGHTING);
 }
@@ -142,6 +148,8 @@ void drawOpaqueBodies()
     gMars.draw(gQuad);
     gJupiter.draw(gQuad);
     gSaturn.draw(gQuad);
+    gUranus.draw(gQuad);
+    gNeptune.draw(gQuad);
 }
 
 // 透明物体统一放到最后：先不透明后透明，混合才可能正确
@@ -230,6 +238,23 @@ void configureBodies()
     gSaturn.setDiffuse(1.00f, 1.00f, 1.00f);
     gSaturn.setTexture(makeTexture("saturn", TEX_GAS, 17, 1024, 512, false));
     gSaturn.enableRing(1.15f, 1.95f, makeTexture("ring", TEX_RING, 18, 512, 8, true));
+
+    // ---------- 天王星：自转轴倾角 98 度，几乎是"躺在轨道面上滚着走" ----------
+    gUranus.setShape(1.05f, 24, 16);
+    gUranus.setOrbit(20.0f, 6.5f);
+    gUranus.setOrbitPhase(75.0f);
+    gUranus.setSpin(60.0f, 97.8f);
+    gUranus.setDiffuse(1.00f, 1.00f, 1.00f);
+    gUranus.setTexture(makeTexture("uranus", TEX_GAS, 19, 512, 256, false));
+
+    // ---------- 海王星 ----------
+    gNeptune.setShape(1.00f, 24, 16);
+    gNeptune.setOrbit(23.5f, 5.0f);
+    gNeptune.setOrbitPhase(190.0f);
+    gNeptune.setSpin(70.0f, 28.3f);
+    gNeptune.setDiffuse(1.00f, 1.00f, 1.00f);
+    gNeptune.setTexture(makeTexture("neptune", TEX_GAS, 20, 512, 256, false));
+
 }
 
 }  // namespace
@@ -291,6 +316,8 @@ void sceneUpdate(float deltaTime)
     gMars.update(deltaTime);
     gJupiter.update(deltaTime);
     gSaturn.update(deltaTime);
+    gUranus.update(deltaTime);
+    gNeptune.update(deltaTime);
 
     // 外焰也按同一套时间推进：暂停时火焰一起停，比"行星停了、火还在烧"更自洽
     gCorona.update(deltaTime);

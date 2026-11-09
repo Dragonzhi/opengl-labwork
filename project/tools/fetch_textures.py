@@ -15,6 +15,8 @@
 
 import io
 import os
+import shutil
+import subprocess
 import sys
 import urllib.request
 
@@ -40,6 +42,10 @@ SOURCES = [
      1024, 512, "Solar System Scope（CC BY 4.0），基于 NASA Cassini 影像"),
     ("saturn", "https://www.solarsystemscope.com/textures/download/2k_saturn.jpg",
      1024, 512, "Solar System Scope（CC BY 4.0），基于 NASA Cassini 影像"),
+    ("uranus", "https://www.solarsystemscope.com/textures/download/2k_uranus.jpg",
+     512, 256, "Solar System Scope（CC BY 4.0），基于 NASA Voyager 2 影像"),
+    ("neptune", "https://www.solarsystemscope.com/textures/download/2k_neptune.jpg",
+     512, 256, "Solar System Scope（CC BY 4.0），基于 NASA Voyager 2 影像"),
 ]
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -47,6 +53,18 @@ ASSETS = os.path.normpath(os.path.join(HERE, "..", "assets"))
 
 
 def fetch(url):
+    # 优先用 curl：Windows 上 Python 自带的 OpenSSL 有时会和 CDN 的 TLS 握手失败
+    # （报 UNEXPECTED_EOF_WHILE_READING），schannel 后端则正常。
+    # --ssl-no-revoke 是为了绕过"吊销列表服务器不可达"导致的连接中断。
+    curl = shutil.which("curl")
+    if curl:
+        try:
+            out = subprocess.run([curl, "-sS", "--ssl-no-revoke", "-L", "-m", "180", url],
+                                 capture_output=True, check=True)
+            if out.stdout:
+                return out.stdout
+        except (OSError, subprocess.CalledProcessError):
+            pass
     req = urllib.request.Request(url, headers={"User-Agent": "opengl-labwork/1.0"})
     with urllib.request.urlopen(req, timeout=90) as resp:
         return resp.read()

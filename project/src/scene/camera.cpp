@@ -6,11 +6,11 @@
 namespace {
 const float PI = 3.1415926f;
 const float kMinDist = 2.5f;
-const float kMaxDist = 80.0f;
+const float kMaxDist = 110.0f;
 }
 
 // 默认站在略高一点的位置，能看清行星环的椭圆
-OrbitCamera::OrbitCamera() : yaw(20.0f), pitch(26.0f), dist(40.0f), focusTarget(0) {}
+OrbitCamera::OrbitCamera() : yaw(20.0f), pitch(26.0f), dist(50.0f), focusTarget(0) {}
 
 float OrbitCamera::clampPitch(float value)
 {
@@ -52,7 +52,7 @@ void OrbitCamera::reset()
         if (dist < kMinDist) dist = kMinDist;
         if (dist > kMaxDist) dist = kMaxDist;
     } else {
-        dist = 40.0f;
+        dist = 50.0f;
     }
 }
 
@@ -61,7 +61,7 @@ void OrbitCamera::setFocus(const Body* body)
     focusTarget = body;
 
     if (body == 0) {
-        dist = 40.0f;               // 全局视角
+        dist = 50.0f;               // 全局视角：刚好装得下 23.5 的海王星轨道
         return;
     }
 
@@ -69,6 +69,16 @@ void OrbitCamera::setFocus(const Body* body)
     dist = body->radius() * 8.0f;
     if (dist < kMinDist) dist = kMinDist;
     if (dist > kMaxDist) dist = kMaxDist;
+
+    // 顺手把相机转到受光侧：光源（太阳）在世界原点，天体在 P(px, 0, pz)。
+    // 相机方位取"天体指向太阳"的方向再偏 55 度——正对受光面会丢掉明暗交界，
+    // 偏一点接近经典的三分之四光，既看得清贴图又能看出球体的立体感。
+    // 不做这一步的话，相机停在原方位角，很可能正对着夜半球，贴图再好也是一团黑。
+    const Vec3 pos = body->worldPosition();
+    if (pos.x * pos.x + pos.z * pos.z > 1.0f) {      // 太阳自己就在原点，跳过
+        const float toSunDeg = std::atan2(-pos.x, -pos.z) * 180.0f / PI;
+        yaw = wrapYaw(toSunDeg + 55.0f);
+    }
 }
 
 void OrbitCamera::apply() const

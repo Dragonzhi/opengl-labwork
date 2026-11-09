@@ -14,10 +14,12 @@
 | `mars.bmp` | 512×256 | `2k_mars.jpg` | Solar System Scope，基于 NASA **MGS/MOLA + Viking** | CC BY 4.0 |
 | `jupiter.bmp` | 1024×512 | `2k_jupiter.jpg` | Solar System Scope，基于 NASA **Cassini** 影像 | CC BY 4.0 |
 | `saturn.bmp` | 1024×512 | `2k_saturn.jpg` | Solar System Scope，基于 NASA **Cassini** 影像 | CC BY 4.0 |
+| `uranus.bmp` | 512×256 | `2k_uranus.jpg` | Solar System Scope，基于 NASA **Voyager 2** 影像 | CC BY 4.0 |
+| `neptune.bmp` | 512×256 | `2k_neptune.jpg` | Solar System Scope，基于 NASA **Voyager 2** 影像 | CC BY 4.0 |
 
-> 署名要求：CC BY 4.0 的六张来自 Solar System Scope（https://www.solarsystemscope.com/textures/），
+> 署名要求：CC BY 4.0 的七张来自 Solar System Scope（https://www.solarsystemscope.com/textures/），
 > 报告中请写一句 "行星贴图：Solar System Scope（CC BY 4.0，基于 NASA 探测影像）"。
-> 月球图直接来自 NASA SVS，属公有领域，无需署名但建议标注出处。
+> 月球图来自 NASA SVS（LRO LROC），属公有领域，无需署名但建议标注出处。
 
 ## 为什么是 BMP
 
@@ -29,7 +31,7 @@
 
 课程实验的画面里，行星直径通常只有几百像素，`gluSphere` 的细分是 16×12～28×20。
 1 度经纬度 ≈ 1.4 像素的贴图（512×256 即每度 1.4 像素）在这个尺寸下已经肉眼看不出
-模糊；再往上加分辨率只是把 6 MB 变成 60 MB。真要更细，改
+模糊；再往上加分辨率只是把 8 MB 变成 80 MB。真要更细，改
 `fetch_textures.py` 里的宽高再跑一遍即可。
 
 ## 方向约定

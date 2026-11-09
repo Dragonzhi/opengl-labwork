@@ -79,7 +79,7 @@ void drawHud()
 
     glColor3f(0.80f, 0.86f, 1.00f);
     drawTextAt(14, height - 26,
-               "ESC quit  SPACE pause  +/- speed  drag orbit  wheel zoom  R reset  1-8/TAB focus");
+               "ESC quit  SPACE pause  +/- speed  drag orbit  wheel zoom  R reset  `~ overview");
 
     char focusText[64];
     if (gFocusIndex < 0) {
@@ -91,10 +91,10 @@ void drawHud()
 
     char line[192];
     if (gPaused) {
-        std::snprintf(line, sizeof(line), "PAUSED  focus: %s  speed %.2fx  dist %.1f",
+        std::snprintf(line, sizeof(line), "PAUSED  focus: %s  speed %.2fx  dist %.1f  keys 1-9/0/TAB",
                       focusText, gTimeScale, gCamera.distance());
     } else {
-        std::snprintf(line, sizeof(line), "focus: %s  speed %.2fx  dist %.1f",
+        std::snprintf(line, sizeof(line), "focus: %s  speed %.2fx  dist %.1f  keys 1-9/0/TAB",
                       focusText, gTimeScale, gCamera.distance());
     }
     drawTextAt(14, height - 48, line);
@@ -241,11 +241,15 @@ void keyboard(unsigned char key, int, int)
     case '\t':                       // Tab：循环切换聚焦目标
         cycleFocus(1);
         break;
-    case '0':                        // 回到全局视角
+    case '0':                        // 海王星（第 10 个聚焦目标）
+        focusBody(9);
+        break;
+    case '`':                        // 全景视角；` 和 ~ 是同一个键的两种状态
+    case '~':
         focusBody(-1);
         break;
     default:
-        if (key >= '1' && key <= '8') {
+        if (key >= '1' && key <= '9') {
             focusBody(key - '1');
         }
         break;
