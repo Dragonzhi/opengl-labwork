@@ -84,6 +84,30 @@ float smoothstep(float e0, float e1, float x)
 }
 }  // namespace
 
+// 由平近点角解出轨道上的相对位置（相对父坐标系原点）。
+// 开普勒方程 M = E - e·sinE 没有解析解，牛顿迭代三五行就收敛到 1e-6。
+// 椭圆：x = a(cosE - e)，z = b·sinE，b = a·sqrt(1-e²)
+// 倾角：把 z 分量绕 X 轴抬起来，y = z·sin i，z = z·cos i
+Vec3 orbitOffsetFor(float semiMajor, float ecc, float incDeg, float meanDeg)
+{
+    const float M = meanDeg * PI / 180.0f;
+    float E = M;
+    for (int k = 0; k < 5; ++k) {
+        E -= (E - ecc * std::sin(E) - M) / (1.0f - ecc * std::cos(E));
+    }
+
+    const float b = semiMajor * std::sqrt(1.0f - ecc * ecc);
+    const float x = semiMajor * (std::cos(E) - ecc);
+    const float z = b * std::sin(E);
+
+    const float inc = incDeg * PI / 180.0f;
+    Vec3 p;
+    p.x = x;
+    p.y = z * std::sin(inc);
+    p.z = z * std::cos(inc);
+    return p;
+}
+
 // 环影的质量旋钮：强度倍数 / 边界柔化比例 / 球面细分倍数
 void setRingShadowTuning(float strength, float feather, int subdiv)
 {
@@ -102,7 +126,8 @@ void setRingShadowTuning(float strength, float feather, int subdiv)
 
 Body::Body()
     : bodyRadius(1.0f), radiusScale(1.0f), slices(20), stacks(16),
-      orbitDistance(0.0f), orbitAngle(0.0f), orbitSpeed(0.0f),
+      orbitDistance(0.0f), eccentricity(0.0f), inclinationDeg(0.0f),
+      orbitAngle(0.0f), orbitSpeed(0.0f),
       spinAngle(0.0f), spinSpeed(0.0f), tiltDeg(0.0f),
       shininess(24.0f), texture(0), parent(0),
       atmoScale(1.0f), atmoAlpha(0.0f),
@@ -139,6 +164,24 @@ void Body::setRadiusScale(float value)
 void Body::setOrbitPhase(float deg)
 {
     orbitAngle = deg;
+}
+
+void Body::setOrbitShape(float ecc, float incDeg)
+{
+    if (ecc < 0.0f) ecc = 0.0f;
+    if (ecc > 0.5f) ecc = 0.5f;
+    eccentricity = ecc;
+    inclinationDeg = incDeg;
+}
+
+void Body::setOrbitSpeed(float degPerSec)
+{
+    orbitSpeed = degPerSec;
+}
+
+Vec3 Body::orbitPointAt(float meanAnomalyDeg) const
+{
+    return orbitOffsetFor(orbitDistance, eccentricity, inclinationDeg, meanAnomalyDeg);
 }
 
 void Body::setSpin(float speed, float tilt)
@@ -187,15 +230,14 @@ Vec3 Body::worldPosition() const
         chain[depth++] = p;
     }
 
+    // 每一层贡献"它自己的椭圆轨道偏移"，直接相加即可：
+    // 椭圆的倾角、偏心率都已经在 orbitOffsetFor 里算好，不再是"绕 Y 转一个角度"
     Vec3 pos;
-    float accDeg = 0.0f;
     for (int i = depth - 1; i >= 0; --i) {
-        accDeg += chain[i]->orbitAngle;
-
-        // glRotatef(a, 0,1,0) 把 (d,0,0) 转到 (d·cos a, 0, -d·sin a)
-        const float angle = accDeg * PI / 180.0f;
-        pos.x += chain[i]->orbitDistance * std::cos(angle);
-        pos.z -= chain[i]->orbitDistance * std::sin(angle);
+        const Vec3 p = chain[i]->orbitPointAt(chain[i]->orbitAngle);
+        pos.x += p.x;
+        pos.y += p.y;
+        pos.z += p.z;
     }
     return pos;
 }
@@ -254,9 +296,10 @@ void Body::draw(GLUquadric* quad) const
 {
     glPushMatrix();
 
-    // 第 1 层：公转。绕父坐标系的原点转，再沿局部 +X 平移出轨道半径
-    glRotatef(orbitAngle, 0.0f, 1.0f, 0.0f);
-    glTranslatef(orbitDistance, 0.0f, 0.0f);
+    // 第 1 层：公转。位置由开普勒方程解出的椭圆给出，直接平移到那个点；
+    // 不能再写成"绕 Y 转一个角度"，因为椭圆 + 倾角已经不是纯旋转了
+    const Vec3 orbitPos = orbitPointAt(orbitAngle);
+    glTranslatef(orbitPos.x, orbitPos.y, orbitPos.z);
 
     // 第 2 层：自转。先倾斜自转轴（绕 Z），再绕自身 Y 轴自转
     glPushMatrix();
@@ -302,12 +345,11 @@ void Body::drawShadowedSphere(float radius, int slices, int stacks) const
 {
     const Vec3 center = worldPosition();
 
-    // 和 draw() 里 glRotatef 的次序严格对应：
-    //   Ry(orbit) * Rz(tilt) * Ry(spin) * Rx(90)
-    const Mat3 rot = matMul(matMul(matMul(rotY(orbitAngle), rotZ(tiltDeg)),
-                                   rotY(spinAngle)), rotX(90.0f));
+    // 世界变换：椭圆位置用平移，姿态只剩 Rz(倾角) * Ry(自转) * Rx(90)，
+    // 公转不再贡献旋转（这是改成椭圆轨道后唯一需要同步的地方）
+    const Mat3 rot = matMul(matMul(rotZ(tiltDeg), rotY(spinAngle)), rotX(90.0f));
     // 环面法线：环画在 Rz(tilt) 之后的 XZ 平面上，法线就是那里的 +Y
-    const Mat3 ringRot = matMul(rotY(orbitAngle), rotZ(tiltDeg));
+    const Mat3 ringRot = rotZ(tiltDeg);
     const Vec3 normal = {ringRot.m[1], ringRot.m[4], ringRot.m[7]};
 
     const float innerR = radius * radiusScale * ringInner;
@@ -390,8 +432,8 @@ void Body::drawTransparent(GLUquadric* quad) const
     if (!hasTransparent()) return;
 
     glPushMatrix();
-    glRotatef(orbitAngle, 0.0f, 1.0f, 0.0f);
-    glTranslatef(orbitDistance, 0.0f, 0.0f);
+    const Vec3 orbitPos = orbitPointAt(orbitAngle);
+    glTranslatef(orbitPos.x, orbitPos.y, orbitPos.z);
     glRotatef(tiltDeg, 0.0f, 0.0f, 1.0f);
     glScalef(radiusScale, radiusScale, radiusScale);
 

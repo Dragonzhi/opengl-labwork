@@ -256,9 +256,10 @@ void keyboard(unsigned char key, int, int)
     case '~':
         focusBody(-1);
         break;
-    case 'l':                        // 演示间距 <-> 真实间距
+    case 'l':                        // 演示间距 <-> 真实比例
     case 'L':
         sceneSetScaleMode(!sceneScaleMode());
+        gCamera.setOverviewDistance(sceneOverviewDistance());
         break;
     case '[':                        // 行星间距整体压缩 / 拉开
         sceneSetSpacingScale(sceneSpacingScale() - 0.1f);
@@ -307,6 +308,10 @@ int main(int argc, char** argv)
                 reinterpret_cast<const char*>(glGetString(GL_VERSION)));
 
     sceneInit();
+
+    // scene.cfg 可能改了间距，相机的总览距离要按它重算一次，
+    // 否则开机时会出现"间距拉大了、相机还停在 62"的构图
+    gCamera.setOverviewDistance(sceneOverviewDistance());
 
     glutDisplayFunc(display);
     glutReshapeFunc(reshape);

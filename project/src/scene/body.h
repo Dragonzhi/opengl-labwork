@@ -28,7 +28,10 @@ public:
 
     void setShape(float radius, int slices, int stacks);
     void setOrbit(float orbitRadius, float orbitSpeedDegPerSec);
-    void setOrbitPhase(float deg);          // 初始公转相位，避免所有天体都从 +X 轴出发
+    void setOrbitPhase(float deg);          // 初始平近点角，避免所有天体都从 +X 轴出发
+    void setOrbitShape(float ecc, float incDeg);   // 偏心率 + 轨道倾角
+    void setOrbitSpeed(float degPerSec);           // 只改角速度（开普勒周期模式用）
+    Vec3 orbitPointAt(float meanAnomalyDeg) const; // 任意平近点角对应的轨道点，画轨道线用
     void setSpin(float spinSpeedDegPerSec, float tiltDeg);
     void setDiffuse(float r, float g, float b);
     void setEmission(float r, float g, float b);
@@ -53,6 +56,7 @@ public:
     // 供场景画轨道线 / 布置灯光 / 相机聚焦使用
     float orbitRadius() const { return orbitDistance; }
     float radius() const { return bodyRadius * radiusScale; }
+    float baseRadius() const { return bodyRadius; }   // 未缩放的原始半径
 
     // 当前帧的世界坐标位置：沿父链把每一级的"公转 + 平移"叠加起来。
     // draw() 里的矩阵栈是 GPU 侧的同一件事，这里是 CPU 侧算一份给相机用。
@@ -69,7 +73,9 @@ private:
     int slices;
     int stacks;
 
-    float orbitDistance;   // 公转半径（沿父坐标系 +X）
+    float orbitDistance;   // 半长轴 a
+    float eccentricity;    // 偏心率 e：0 = 正圆
+    float inclinationDeg;  // 轨道倾角（绕 X 轴把轨道面抬起来）
     float orbitAngle;
     float orbitSpeed;
 

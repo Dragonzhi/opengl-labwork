@@ -60,28 +60,32 @@ struct OrbitEntry
     Body* body;
     float demoRadius;   // 手调的"看得舒服"的间距
     float au;           // 真实半长轴（天文单位）
-    float speed;        // 公转角速度（度/秒，演示用的，不是真实周期）
+    float speed;        // 演示用公转角速度（度/秒），不是真实周期
+    float ecc;          // 真实偏心率
+    float inc;          // 真实轨道倾角（度，相对黄道）
+    float radiusKm;     // 真实赤道半径（km），真实比例模式用它决定显示大小
 };
 
 OrbitEntry gOrbits[] = {
-    {&gMercury,  5.0f,  0.387f, 55.0f},
-    {&gVenus,    7.2f,  0.723f, 40.0f},
-    {&gEarth,    9.6f,  1.000f, 30.0f},
-    {&gMars,    12.0f,  1.524f, 22.0f},
-    {&gJupiter, 16.0f,  5.203f, 13.0f},
-    {&gSaturn,  21.0f,  9.537f,  9.0f},
-    {&gUranus,  26.0f, 19.190f,  6.5f},
-    {&gNeptune, 31.0f, 30.070f,  5.0f}
+    {&gMercury,  5.0f,  0.387f, 55.0f, 0.206f, 7.00f,  2440.0f},
+    {&gVenus,    7.2f,  0.723f, 40.0f, 0.007f, 3.39f,  6052.0f},
+    {&gEarth,    9.6f,  1.000f, 30.0f, 0.017f, 0.00f,  6371.0f},
+    {&gMars,    12.0f,  1.524f, 22.0f, 0.093f, 1.85f,  3390.0f},
+    {&gJupiter, 16.0f,  5.203f, 13.0f, 0.048f, 1.30f, 69911.0f},
+    {&gSaturn,  21.0f,  9.537f,  9.0f, 0.054f, 2.49f, 58232.0f},
+    {&gUranus,  26.0f, 19.190f,  6.5f, 0.047f, 0.77f, 25362.0f},
+    {&gNeptune, 31.0f, 30.070f,  5.0f, 0.009f, 1.77f, 24622.0f}
 };
 const int kOrbitCount = static_cast<int>(sizeof(gOrbits) / sizeof(gOrbits[0]));
 
 // 真实间距的映射：r = 偏移 + 缩放 * 半长轴。
 // 偏移是为了让水星（0.387 AU）不至于落进半径 2 的太阳和外焰辉光里；
 // 缩放取到海王星刚好落在 31.8，和演示间距的最外圈齐平，切换时画面不跳。
-const float kRealOrbitOffset = 4.8f;
-const float kRealOrbitScale = 0.95f;
+// 真实间距映射：r = 偏移 + 缩放 · a(AU)。两个数都能在 scene.cfg 里改
+const float kRealOrbitOffsetDefault = 4.8f;
+const float kRealOrbitScaleDefault = 0.95f;
 // 真实间距下行星必须缩小，否则内行星会互相穿插
-const float kRealSizeScale = 0.15f;
+const float kRealSizeScaleDefault = 0.15f;
 
 bool gRealScale = false;
 
@@ -114,6 +118,14 @@ struct SceneParams
     float ambient[3];         // 全局环境光
     float fogStart, fogEnd;
 
+    float orbitEccentricity;  // 偏心率缩放：1 = 真实椭圆，0 = 全画成正圆
+    float orbitInclination;   // 倾角缩放：1 = 真实倾角，0 = 全压成共面
+    int   keplerPeriods;      // 1 = 公转角速度按开普勒第三定律（T ∝ a^1.5）
+    float realOrbitOffset;    // 真实间距映射的偏移
+    float realOrbitScale;     // 真实间距映射的缩放
+    float realEarthRadius;    // 真实比例下"地球"的显示半径，其余行星按真实半径比例换算
+    float realSunLimit;       // 太阳显示半径的上限（× 水星轨道半径）
+
     SceneParams()
         : spacing(1.0f), overviewDistance(62.0f),
           shadowStrength(1.0f), shadowFeather(0.06f), shadowSubdiv(4),
@@ -123,7 +135,11 @@ struct SceneParams
           kuiperCount(1400), kuiperDemoInner(34.0f), kuiperDemoOuter(41.0f),
           kuiperAuInner(33.0f), kuiperAuOuter(45.0f),
           kuiperPointSize(1.5f),
-          fogStart(90.0f), fogEnd(380.0f)
+          fogStart(90.0f), fogEnd(380.0f),
+          orbitEccentricity(1.0f), orbitInclination(1.0f), keplerPeriods(0),
+          realOrbitOffset(kRealOrbitOffsetDefault),
+          realOrbitScale(kRealOrbitScaleDefault),
+          realEarthRadius(0.02f), realSunLimit(0.18f)
     {
         asteroidColor[0] = 0.30f; asteroidColor[1] = 0.28f; asteroidColor[2] = 0.24f;
         kuiperColor[0] = 0.42f;   kuiperColor[1] = 0.46f;   kuiperColor[2] = 0.52f;
@@ -239,7 +255,7 @@ void rebuildBeltPositions()
     for (int i = 0; i < kAsteroidMax; ++i) {
         const float t = gAsteroidParams[i].t;
         const float radius = gRealScale
-            ? (kRealOrbitOffset + kRealOrbitScale * (gParams.asteroidAuInner +
+            ? (gParams.realOrbitOffset + gParams.realOrbitScale * (gParams.asteroidAuInner +
                                                      (gParams.asteroidAuOuter - gParams.asteroidAuInner) * t))
             : (gParams.asteroidDemoInner +
                (gParams.asteroidDemoOuter - gParams.asteroidDemoInner) * t) * gParams.spacing;
@@ -251,7 +267,7 @@ void rebuildBeltPositions()
     for (int i = 0; i < kKuiperMax; ++i) {
         const float t = gKuiperParams[i].t;
         const float radius = gRealScale
-            ? (kRealOrbitOffset + kRealOrbitScale * (gParams.kuiperAuInner +
+            ? (gParams.realOrbitOffset + gParams.realOrbitScale * (gParams.kuiperAuInner +
                                                      (gParams.kuiperAuOuter - gParams.kuiperAuInner) * t))
             : (gParams.kuiperDemoInner +
                (gParams.kuiperDemoOuter - gParams.kuiperDemoInner) * t) * gParams.spacing;
@@ -315,14 +331,17 @@ void drawStarfield()
     glEnable(GL_LIGHTING);
 }
 
-// 轨道只是一圈线，不需要光照和纹理
-void drawOrbitRing(float radius)
+// 轨道只是一圈线，不需要光照和纹理。
+// 现在按椭圆 + 倾角采样：轨道线必须和天体实际走的位置用同一个函数，
+// 否则线在一边、行星在另一边（这正是 §15 那个 bug 的另一种形态）
+void drawOrbitRing(const Body& body)
 {
-    const int segments = 96;
+    const int segments = 180;
     glBegin(GL_LINE_LOOP);
     for (int i = 0; i < segments; ++i) {
-        const float angle = 2.0f * PI * static_cast<float>(i) / static_cast<float>(segments);
-        glVertex3f(radius * std::cos(angle), 0.0f, radius * std::sin(angle));
+        const float meanDeg = 360.0f * static_cast<float>(i) / static_cast<float>(segments);
+        const Vec3 p = body.orbitPointAt(meanDeg);
+        glVertex3f(p.x, p.y, p.z);
     }
     glEnd();
 }
@@ -333,14 +352,14 @@ void drawOrbits()
     glDisable(GL_TEXTURE_2D);
     glColor3f(0.28f, 0.36f, 0.52f);
 
-    drawOrbitRing(gMercury.orbitRadius());
-    drawOrbitRing(gVenus.orbitRadius());
-    drawOrbitRing(gEarth.orbitRadius());
-    drawOrbitRing(gMars.orbitRadius());
-    drawOrbitRing(gJupiter.orbitRadius());
-    drawOrbitRing(gSaturn.orbitRadius());
-    drawOrbitRing(gUranus.orbitRadius());
-    drawOrbitRing(gNeptune.orbitRadius());
+    drawOrbitRing(gMercury);
+    drawOrbitRing(gVenus);
+    drawOrbitRing(gEarth);
+    drawOrbitRing(gMars);
+    drawOrbitRing(gJupiter);
+    drawOrbitRing(gSaturn);
+    drawOrbitRing(gUranus);
+    drawOrbitRing(gNeptune);
 
     glEnable(GL_LIGHTING);
 }
@@ -378,13 +397,33 @@ void applyLighting()
     glLightfv(GL_LIGHT0, GL_POSITION, lightPosition);
 }
 
+// 把 ocbit 表里的偏心率/倾角/角速度套到天体上。
+// scene.cfg 改了缩放系数或开普勒开关之后要再调一次。
+void applyOrbitShape()
+{
+    for (int i = 0; i < kOrbitCount; ++i) {
+        OrbitEntry& e = gOrbits[i];
+        e.body->setOrbitShape(e.ecc * gParams.orbitEccentricity,
+                              e.inc * gParams.orbitInclination);
+
+        // 开普勒第三定律：周期 T ∝ a^1.5，所以角速度 ∝ a^-1.5。
+        // 以地球 30 度/秒为基准，海王星就会慢到 0.18 度/秒——"几乎不动"正是真实的样子
+        float speed = e.speed;
+        if (gParams.keplerPeriods != 0) {
+            const float au = (e.au > 0.01f) ? e.au : 1.0f;
+            speed = 30.0f * std::pow(1.0f / au, 1.5f);
+        }
+        e.body->setOrbitSpeed(speed);
+    }
+}
+
 void configureBodies()
 {
-    // 轨道半径与角速度统一由 gOrbits 提供，避免两处各写一份而不同步
+    // 轨道半径、偏心率、倾角、角速度统一由 gOrbits 提供，避免两处各写一份而不同步
     for (int i = 0; i < kOrbitCount; ++i) {
-        gOrbits[i].body->setOrbit(gOrbits[i].demoRadius * gParams.spacing,
-                                  gOrbits[i].speed);
+        gOrbits[i].body->setOrbitRadius(gOrbits[i].demoRadius * gParams.spacing);
     }
+    applyOrbitShape();
 
     // ---------- 太阳：位置在原点，靠 emission 自发光 ----------
     gSun.setShape(2.0f, 32, 24);
@@ -589,19 +628,46 @@ void sceneSetScaleMode(bool realScale)
 {
     gRealScale = realScale;
 
-    const float sizeScale = realScale ? kRealSizeScale : 1.0f;
     for (int i = 0; i < kOrbitCount; ++i) {
         OrbitEntry& entry = gOrbits[i];
         const float radius = realScale
-            ? (kRealOrbitOffset + kRealOrbitScale * entry.au)
+            ? (gParams.realOrbitOffset + gParams.realOrbitScale * entry.au)
             : entry.demoRadius * gParams.spacing;
         entry.body->setOrbitRadius(radius);
-        entry.body->setRadiusScale(sizeScale);
+
+        if (realScale) {
+            // 真实模式：显示半径按真实半径比例（以地球为基准），而不是所有行星乘同一个系数
+            const float display = entry.radiusKm / 6371.0f * gParams.realEarthRadius;
+            entry.body->setRadiusScale(display / entry.body->baseRadius());
+        } else {
+            entry.body->setRadiusScale(1.0f);
+        }
     }
 
-    // 月球跟着地球一起缩，绕地半径也一起缩，否则"小地球 + 远月球"很别扭
-    gMoon.setOrbitRadius(1.55f * sizeScale);
-    gMoon.setRadiusScale(sizeScale);
+    // 太阳：真实比例下太阳是地球的 109 倍，按真实值画会正好吞掉水星轨道，
+    // 所以再压一个上限（realSunLimit × 水星轨道半径），保证内圈还看得见
+    if (realScale) {
+        const float mercuryOrbit = gParams.realOrbitOffset + gParams.realOrbitScale * gOrbits[0].au;
+        float sunDisplay = 109.0f * gParams.realEarthRadius;
+        const float limit = gParams.realSunLimit * mercuryOrbit;
+        if (sunDisplay > limit) sunDisplay = limit;
+        gSun.setRadiusScale(sunDisplay / gSun.baseRadius());
+    } else {
+        gSun.setRadiusScale(1.0f);
+    }
+
+    // 月球：半径按真实比例，绕地半径取"别钻进地球里"的下限
+    if (realScale) {
+        const float moonDisplay = 1737.0f / 6371.0f * gParams.realEarthRadius;
+        gMoon.setRadiusScale(moonDisplay / gMoon.baseRadius());
+        float moonOrbit = 0.00257f * gParams.realOrbitScale;
+        const float minOrbit = 2.8f * (6371.0f / 6371.0f * gParams.realEarthRadius);
+        if (moonOrbit < minOrbit) moonOrbit = minOrbit;
+        gMoon.setOrbitRadius(moonOrbit);
+    } else {
+        gMoon.setRadiusScale(1.0f);
+        gMoon.setOrbitRadius(1.55f);
+    }
 
     // 两条带也得跟着换半径，否则真实间距下它们会跑到错误的行星之间
     rebuildBeltPositions();
@@ -632,7 +698,12 @@ float sceneSpacingScale()
 
 float sceneOverviewDistance()
 {
-    // 总览距离跟着间距一起放大，行星拉开多少、相机就退多少，装不下的问题自动消失
+    // 真实模式：要让海王星整圈都落在视锥里。45 度竖直角 + 4:3 下，
+    // 横向半宽 ≈ dist × tan(22.5°) × 1.333 ≈ 0.552 × dist，取 1.85 留一点余量
+    if (gRealScale) {
+        return (gParams.realOrbitOffset + gParams.realOrbitScale * 30.07f) * 1.85f;
+    }
+    // 演示模式下跟着间距一起放大，行星拉开多少、相机就退多少
     return gParams.overviewDistance * gParams.spacing;
 }
 
@@ -750,6 +821,28 @@ bool applySceneKey(const char* key, const float* v, int n)
         gParams.fogEnd = clampF(a, 20.0f, 2000.0f); return true;
     }
 
+    if (std::strcmp(key, "orbitEccentricity") == 0) {
+        gParams.orbitEccentricity = clampF(a, 0.0f, 1.0f); return true;
+    }
+    if (std::strcmp(key, "orbitInclination") == 0) {
+        gParams.orbitInclination = clampF(a, 0.0f, 3.0f); return true;
+    }
+    if (std::strcmp(key, "keplerPeriods") == 0) {
+        gParams.keplerPeriods = (a > 0.5f) ? 1 : 0; return true;
+    }
+    if (std::strcmp(key, "realOrbitOffset") == 0) {
+        gParams.realOrbitOffset = clampF(a, 0.0f, 60.0f); return true;
+    }
+    if (std::strcmp(key, "realOrbitScale") == 0) {
+        gParams.realOrbitScale = clampF(a, 0.05f, 5.0f); return true;
+    }
+    if (std::strcmp(key, "realEarthRadius") == 0) {
+        gParams.realEarthRadius = clampF(a, 0.002f, 0.3f); return true;
+    }
+    if (std::strcmp(key, "realSunLimit") == 0) {
+        gParams.realSunLimit = clampF(a, 0.02f, 1.0f); return true;
+    }
+
     return false;   // 不认识的键直接忽略，不报错
 }
 
@@ -807,6 +900,7 @@ bool sceneReloadConfig()
     glFogf(GL_FOG_END, gParams.fogEnd);
 
     sceneSetSpacingScale(gParams.spacing);
+    applyOrbitShape();   // 偏心率/倾角缩放、开普勒周期都在这里生效
 
     std::snprintf(gConfigStatus, sizeof(gConfigStatus), "scene.cfg #%d: %d keys%s",
                   gConfigReloadCount, gConfigKeyCount,
