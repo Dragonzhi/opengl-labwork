@@ -15,3 +15,7 @@ void sceneRelease();
 int sceneBodyCount();
 const Body* sceneBodyAt(int index);
 const char* sceneBodyName(int index);
+
+// 外焰参数热重载：重新读 corona.cfg 并重建贴图，供 F5 调用
+bool sceneReloadCorona();
+const char* sceneCoronaStatus();

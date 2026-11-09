@@ -13,6 +13,7 @@ add_executable(triangle
     src/gfx/texture.cpp
     src/scene/camera.cpp
     src/scene/body.cpp
+    src/scene/corona.cpp
     src/scene/scene.cpp
 )
 target_include_directories(triangle PRIVATE third_party/freeglut/include)

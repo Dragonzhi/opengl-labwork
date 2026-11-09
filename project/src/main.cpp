@@ -99,6 +99,12 @@ void drawHud()
     }
     drawTextAt(14, height - 48, line);
 
+    // 第三行：外焰参数热重载的状态。改完 corona.cfg 按 F5，这里会显示第几次加载
+    char coronaLine[128];
+    std::snprintf(coronaLine, sizeof(coronaLine),
+                  "F5 reload corona.cfg  |  %s", sceneCoronaStatus());
+    drawTextAt(14, height - 70, coronaLine);
+
     glEnable(GL_FOG);
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_LIGHTING);
@@ -247,6 +253,15 @@ void keyboard(unsigned char key, int, int)
     glutPostRedisplay();
 }
 
+void special(int key, int, int)
+{
+    // F5：重新读 corona.cfg 并重建外焰贴图，调参不用重新编译
+    if (key == GLUT_KEY_F5) {
+        sceneReloadCorona();
+        glutPostRedisplay();
+    }
+}
+
 }  // namespace
 
 int main(int argc, char** argv)
@@ -271,6 +286,7 @@ int main(int argc, char** argv)
     glutMouseFunc(mouse);
     glutMotionFunc(motion);
     glutKeyboardFunc(keyboard);
+    glutSpecialFunc(special);
 
     if (!gSmokeTest) {
         gLastTimeMs = glutGet(GLUT_ELAPSED_TIME);

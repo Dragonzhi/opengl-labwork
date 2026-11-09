@@ -1,5 +1,6 @@
 #include "scene.h"
 #include "body.h"
+#include "corona.h"
 #include "../gfx/texture.h"
 
 #include <cmath>
@@ -25,6 +26,9 @@ Body gMoon;
 Body gMars;
 Body gJupiter;
 Body gSaturn;
+
+// 太阳外焰：不属于任何天体，是围绕太阳中心的一层独立光效
+SunCorona gCorona;
 
 GLUquadric* gQuad = 0;
 std::vector<GLuint> gTextures;
@@ -163,9 +167,10 @@ void configureBodies()
     gSun.setOrbit(0.0f, 0.0f);
     gSun.setSpin(4.0f, 0.0f);
     gSun.setDiffuse(0.95f, 0.72f, 0.30f);
-    gSun.setEmission(1.00f, 0.86f, 0.50f);
+    gSun.setEmission(1.00f, 0.90f, 0.56f);
     gSun.setShininess(8.0f);
-    gSun.setTexture(makeTexture("sun", TEX_SUN, 7, 256, 128, false));
+    // 512x256：米粒组织要够细，2 的幂才能建 mipmap
+    gSun.setTexture(makeTexture("sun", TEX_SUN, 7, 512, 256, false));
 
     // ---------- 水星 ----------
     gMercury.setShape(0.42f, 16, 12);
@@ -274,6 +279,7 @@ void sceneInit()
 
     buildStarfield();
     configureBodies();
+    gCorona.init();
 }
 
 void sceneUpdate(float deltaTime)
@@ -285,6 +291,9 @@ void sceneUpdate(float deltaTime)
     gMars.update(deltaTime);
     gJupiter.update(deltaTime);
     gSaturn.update(deltaTime);
+
+    // 外焰也按同一套时间推进：暂停时火焰一起停，比"行星停了、火还在烧"更自洽
+    gCorona.update(deltaTime);
 }
 
 void sceneDraw()
@@ -294,10 +303,17 @@ void sceneDraw()
     drawOrbits();
     drawOpaqueBodies();
     drawTransparentBodies();
+
+    // 外焰放在最后画：它是纯加色的光，应该叠在所有已画内容之上；
+    // 深度测试仍在，挡在太阳前面的行星会正确地把光晕挡住。
+    const Vec3 sunPosition = gSun.worldPosition();
+    gCorona.draw(sunPosition.x, sunPosition.y, sunPosition.z, gSun.radius());
 }
 
 void sceneRelease()
 {
+    gCorona.release();
+
     for (std::size_t i = 0; i < gTextures.size(); ++i) {
         GLuint id = gTextures[i];
         releaseTexture(id);
@@ -325,4 +341,14 @@ const char* sceneBodyName(int index)
 {
     if (index < 0 || index >= kBodyCount) return "";
     return gBodyTable[index].name;
+}
+
+bool sceneReloadCorona()
+{
+    return gCorona.reload();
+}
+
+const char* sceneCoronaStatus()
+{
+    return gCorona.status();
 }

@@ -158,6 +158,10 @@ void Body::draw(GLUquadric* quad) const
     glRotatef(tiltDeg, 0.0f, 0.0f, 1.0f);
     glRotatef(spinAngle, 0.0f, 1.0f, 0.0f);
 
+    // gluSphere 的纹理极点在 Z 轴上，正对相机时会变成一团放射状的"风扇"。
+    // 先把极轴转到 Y 轴：极点被赶到画面上下边缘，气态行星的条带也才是水平的。
+    glRotatef(90.0f, 1.0f, 0.0f, 0.0f);
+
     applyMaterial();
     if (texture != 0) {
         glEnable(GL_TEXTURE_2D);
