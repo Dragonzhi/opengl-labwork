@@ -320,12 +320,31 @@ void Body::draw(GLUquadric* quad) const
         glEnable(GL_TEXTURE_2D);
         glBindTexture(GL_TEXTURE_2D, texture);
     }
+
+    // 赤道贴图左右镜像的修正。
+    // gluSphere 的 s 是绕极轴逆时针增大的，而我们把极轴从 Z 转到 Y 之后，
+    // 这个"逆时针"在画面里就成了"从右往左"，正好和等距圆柱贴图
+    // （左边 = 180°W，s 向东增大）相反 —— 地球、火星这种有经度特征的
+    // 会变成镜像。这里把 s 翻过来：s' = 1 - s。
+    // 用纹理矩阵做，不动顶点也不动几何；作用域只包住球体本身，
+    // 环的贴图（s 沿半径、区分内外缘）走的是另一个函数，不受影响。
+    glMatrixMode(GL_TEXTURE);
+    glPushMatrix();
+    glTranslatef(1.0f, 0.0f, 0.0f);
+    glScalef(-1.0f, 1.0f, 1.0f);
+    glMatrixMode(GL_MODELVIEW);
+
     if (ringTexture != 0 && ringShadowStrength > 0.0f) {
         // 环会挡光：换成逐顶点的球面，把影子和本体一次画完
         drawShadowedSphere(bodyRadius, slices * gShadowSubdiv, stacks * gShadowSubdiv);
     } else {
         gluSphere(quad, bodyRadius, slices, stacks);
     }
+
+    glMatrixMode(GL_TEXTURE);
+    glPopMatrix();
+    glMatrixMode(GL_MODELVIEW);
+
     if (texture != 0) {
         glDisable(GL_TEXTURE_2D);
     }
