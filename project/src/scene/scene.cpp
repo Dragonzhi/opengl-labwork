@@ -71,10 +71,13 @@ OrbitEntry gOrbits[] = {
     {&gVenus,    7.2f,  0.723f, 40.0f, 0.007f, 3.39f,  6052.0f},
     {&gEarth,    9.6f,  1.000f, 30.0f, 0.017f, 0.00f,  6371.0f},
     {&gMars,    12.0f,  1.524f, 22.0f, 0.093f, 1.85f,  3390.0f},
-    {&gJupiter, 16.0f,  5.203f, 13.0f, 0.048f, 1.30f, 69911.0f},
-    {&gSaturn,  21.0f,  9.537f,  9.0f, 0.054f, 2.49f, 58232.0f},
-    {&gUranus,  26.0f, 19.190f,  6.5f, 0.047f, 0.77f, 25362.0f},
-    {&gNeptune, 31.0f, 30.070f,  5.0f, 0.009f, 1.77f, 24622.0f}
+    // 木星往外的四颗要比"真实距离"更靠外：演示里行星半径被放大了上千倍，
+    // 木星 1.70 的半径在这个尺度上就是小半个天文单位的"实体"，
+    // 按原来 16.0 放，近日点盘面会伸进小行星带里。
+    {&gJupiter, 18.0f,  5.203f, 13.0f, 0.048f, 1.30f, 69911.0f},
+    {&gSaturn,  23.6f,  9.537f,  9.0f, 0.054f, 2.49f, 58232.0f},
+    {&gUranus,  29.0f, 19.190f,  6.5f, 0.047f, 0.77f, 25362.0f},
+    {&gNeptune, 33.0f, 30.070f,  5.0f, 0.009f, 1.77f, 24622.0f}
 };
 const int kOrbitCount = static_cast<int>(sizeof(gOrbits) / sizeof(gOrbits[0]));
 
@@ -127,12 +130,12 @@ struct SceneParams
     float realSunLimit;       // 太阳显示半径的上限（× 水星轨道半径）
 
     SceneParams()
-        : spacing(1.0f), overviewDistance(62.0f),
+        : spacing(1.0f), overviewDistance(68.0f),
           shadowStrength(1.0f), shadowFeather(2.5f), shadowSubdiv(4),
-          asteroidCount(900), asteroidDemoInner(12.9f), asteroidDemoOuter(14.3f),
+          asteroidCount(900), asteroidDemoInner(13.9f), asteroidDemoOuter(15.0f),
           asteroidAuInner(2.1f), asteroidAuOuter(3.3f),
           asteroidPointSize(1.5f),
-          kuiperCount(1400), kuiperDemoInner(34.0f), kuiperDemoOuter(41.0f),
+          kuiperCount(1400), kuiperDemoInner(35.5f), kuiperDemoOuter(42.5f),
           kuiperAuInner(33.0f), kuiperAuOuter(45.0f),
           kuiperPointSize(1.5f),
           fogStart(90.0f), fogEnd(380.0f),
