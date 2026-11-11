@@ -7,6 +7,15 @@
 #include "scene/camera.h"
 #include "scene/scene.h"
 
+// MinGW 随工具链带的 GL/gl.h 只声明到 OpenGL 1.1，而 GL_MULTISAMPLE / GL_SAMPLES
+// 是 1.3 的枚举。驱动一定认识这两个值，补定义即可，不需要引 glext.h / GLEW。
+#ifndef GL_MULTISAMPLE
+#define GL_MULTISAMPLE 0x809D
+#endif
+#ifndef GL_SAMPLES
+#define GL_SAMPLES 0x80A9
+#endif
+
 namespace {
 
 bool  gSmokeTest = false;          // --smoke-test 无交互自检
@@ -298,14 +307,28 @@ int main(int argc, char** argv)
     if (gSmokeTest) argc = 1;
 
     glutInit(&argc, argv);
-    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
+    // GLUT_MULTISAMPLE 会让 freeglut 去要一个多重采样的像素格式：win32 后端
+    // 会临时建 dummy window 拿 wglChoosePixelFormatARB，再填
+    // WGL_SAMPLE_BUFFERS_ARB / WGL_SAMPLES_ARB（默认 4 采样）。
+    // 拿不到就静默回落到单采样，不会崩。
+    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH | GLUT_MULTISAMPLE);
     glutInitWindowSize(800, 600);
     glutCreateWindow("OpenGL Class - 3D Solar System");
+
+    // GL_MULTISAMPLE 按规范默认是开的，显式打开一次更保险。
+    // 注意它只管"多边形边界"：三角形内部的颜色跳变（比如环影的边）它不处理。
+    glEnable(GL_MULTISAMPLE);
 
     std::printf("Vendor:   %s\nRenderer: %s\nVersion:  %s\n",
                 reinterpret_cast<const char*>(glGetString(GL_VENDOR)),
                 reinterpret_cast<const char*>(glGetString(GL_RENDERER)),
                 reinterpret_cast<const char*>(glGetString(GL_VERSION)));
+
+    // 自检 MSAA 是否真的拿到了：0 = 单采样（像素格式没给多重采样），4/8 = 正常。
+    // 只开 GLUT_MULTISAMPLE 不代表一定成功，驱动有可能回落到默认格式。
+    GLint sampleCount = 0;
+    glGetIntegerv(GL_SAMPLES, &sampleCount);
+    std::printf("MSAA:     %d samples\n", static_cast<int>(sampleCount));
 
     sceneInit();
 

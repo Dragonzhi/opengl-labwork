@@ -100,7 +100,7 @@ struct SceneParams
     float overviewDistance;   // 全局视角基准距离，实际 = 这个值 × spacing
 
     float shadowStrength;     // 环影强度倍数（0 = 关掉环投在行星上的影子）
-    float shadowFeather;      // 环影边界柔化，占环带宽度的比例
+    float shadowFeather;      // 环影软边宽度，单位是屏幕像素（不是环宽的比例）
     int   shadowSubdiv;       // 环影球面细分倍数
 
     int   asteroidCount;
@@ -128,7 +128,7 @@ struct SceneParams
 
     SceneParams()
         : spacing(1.0f), overviewDistance(62.0f),
-          shadowStrength(1.0f), shadowFeather(0.06f), shadowSubdiv(4),
+          shadowStrength(1.0f), shadowFeather(2.5f), shadowSubdiv(4),
           asteroidCount(900), asteroidDemoInner(12.9f), asteroidDemoOuter(14.3f),
           asteroidAuInner(2.1f), asteroidAuOuter(3.3f),
           asteroidPointSize(1.5f),
@@ -758,7 +758,7 @@ bool applySceneKey(const char* key, const float* v, int n)
         gParams.shadowStrength = clampF(a, 0.0f, 2.0f); return true;
     }
     if (std::strcmp(key, "ringShadowFeather") == 0) {
-        gParams.shadowFeather = clampF(a, 0.0f, 0.3f); return true;
+        gParams.shadowFeather = clampF(a, 0.25f, 4.0f); return true;
     }
     if (std::strcmp(key, "ringShadowSubdiv") == 0) {
         gParams.shadowSubdiv = clampI(static_cast<int>(a + 0.5f), 1, 8); return true;

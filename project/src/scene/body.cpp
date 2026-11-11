@@ -9,7 +9,7 @@ float smoothstep(float e0, float e1, float x);   // 定义在下面，这里先�
 
 // 环影的全局可调项，默认值和 scene.cfg 里的默认值一致
 float gShadowStrengthScale = 1.0f;
-float gShadowFeather = 0.06f;
+float gShadowFeather = 2.5f;   // 软边宽度，单位是屏幕像素（不是环宽的比例）
 int   gShadowSubdiv = 4;
 
 // 3x3 旋转矩阵，行主序。只为了在 CPU 侧把球面顶点搬到世界坐标去做阴影判断
@@ -108,15 +108,16 @@ Vec3 orbitOffsetFor(float semiMajor, float ecc, float incDeg, float meanDeg)
     return p;
 }
 
-// 环影的质量旋钮：强度倍数 / 边界柔化比例 / 球面细分倍数
+// 环影的质量旋钮：强度倍数 / 软边宽度（像素） / 球面细分倍数
 void setRingShadowTuning(float strength, float feather, int subdiv)
 {
     if (strength < 0.0f) strength = 0.0f;
     if (strength > 2.0f) strength = 2.0f;
     gShadowStrengthScale = strength;
 
-    if (feather < 0.0f) feather = 0.0f;
-    if (feather > 0.3f) feather = 0.3f;
+    // 0 会让 smoothstep 的区间退化成一点（0/0），所以留 0.25 像素的下限
+    if (feather < 0.25f) feather = 0.25f;
+    if (feather > 4.0f) feather = 4.0f;
     gShadowFeather = feather;
 
     if (subdiv < 1) subdiv = 1;
@@ -340,7 +341,9 @@ void Body::draw(GLUquadric* quad) const
 
 // 逐顶点阴影球面：参数化和 gluSphere 一样（极点在局部 Z 轴、u 沿经度、v 从北到南），
 // 只是顶点由我们自己提交，才能把"环挡不挡这颗顶点"算进顶点颜色。
-// 顶点颜色走 GL_COLOR_MATERIAL，直接乘进 ambient + diffuse，光照模型不用改。
+// 顶点颜色只挂到 GL_COLOR_MATERIAL 的 GL_DIFFUSE 上：阴影的本质是"少了直射光"，
+// 环境光必须原样留着。否则夜半球（本来就没有直射光）也会被画上影子，
+// 变成一条现实中根本看不见的黑带。
 void Body::drawShadowedSphere(float radius, int slices, int stacks) const
 {
     const Vec3 center = worldPosition();
@@ -356,7 +359,27 @@ void Body::drawShadowedSphere(float radius, int slices, int stacks) const
     const float outerR = radius * radiusScale * ringOuter;
 
     glEnable(GL_COLOR_MATERIAL);
-    glColorMaterial(GL_FRONT, GL_AMBIENT_AND_DIFFUSE);
+    glColorMaterial(GL_FRONT, GL_DIFFUSE);   // 只乘漫反射，环境光不动
+
+    // ---------- 抗锯齿：先量出"一个屏幕像素在世界坐标里有多宽" ----------
+    // 阴影的软边宽度必须按**像素**给。原因在求交公式里：t = -h/c，c = s·法线
+    // = sinθ（θ 是太阳高出环面的角度）。c 越小，同样的表面位移对应的交点半径 r
+    // 变化越大，放大约 1/|c| 倍。按"环宽的比例"给死一个 feather，到了太阳贴近
+    // 环面（θ 小）的时候它会缩到半个像素以下 —— 滤波窗口比采样间隔还窄，
+    // 等于没滤波，硬边和锯齿就回来了。所以这里先算出 worldPerPixel，
+    // 后面按每个顶点的 1/|c| 放大，让边界在屏幕上永远是固定几个像素。
+    GLfloat mvMat[16], projMat[16];
+    GLint vp[4];
+    glGetFloatv(GL_MODELVIEW_MATRIX, mvMat);
+    glGetFloatv(GL_PROJECTION_MATRIX, projMat);
+    glGetIntegerv(GL_VIEWPORT, vp);
+    // 局部原点就是这个天体的中心，它的眼坐标 z 直接取平移分量
+    const float eyeZ = mvMat[14];
+    // gluPerspective 的 m[5] = cot(fovy/2)，所以"一像素 = 2·|z| /(m5·高)"世界单位
+    float worldPerPixel = 0.0f;
+    if (projMat[5] > 1e-4f && vp[3] > 0) {
+        worldPerPixel = 2.0f * std::fabs(eyeZ) / (projMat[5] * static_cast<float>(vp[3]));
+    }
 
     for (int j = 0; j < stacks; ++j) {
         const float v0 = static_cast<float>(j) / static_cast<float>(stacks);
@@ -400,16 +423,44 @@ void Body::drawShadowedSphere(float radius, int slices, int stacks) const
                             const float qy = vy + tHit * sy;
                             const float qz = vz + tHit * sz;
                             const float r = std::sqrt(qx * qx + qy * qy + qz * qz);
-                            // 环带两端用 smoothstep 收一下：硬切的边界即使细分很高，
-                            // 插值出来也是一圈锯齿。feather 取环带宽度的 6%。
-                            const float feather = (outerR - innerR) * gShadowFeather;
+                            // 软边宽度：gShadowFeather 是"想要几个像素"，乘上
+                            // 一个像素对应的 Δr 就是世界单位下的滤波窗口。
+                            // |c| 就是前面说的那个放大因子，夹到 0.05 免得除爆；
+                            // 上限压到环带宽度的 30%，防止掠射时整条带糊成一片。
+                            const float cAbs = c < 0.0f ? -c : c;
+                            float feather = gShadowFeather * worldPerPixel /
+                                            (cAbs > 0.05f ? cAbs : 0.05f);
+                            if (feather < 1e-4f) feather = 1e-4f;
+                            const float maxFeather = (outerR - innerR) * 0.3f;
+                            if (feather > maxFeather) feather = maxFeather;
                             const float cover = smoothstep(innerR, innerR + feather, r) *
                                                 (1.0f - smoothstep(outerR - feather, outerR, r));
                             if (cover > 0.0f) {
                                 const float uu = (r - innerR) / (outerR - innerR);
                                 float strength = ringShadowStrength * gShadowStrengthScale;
                                 if (strength > 1.0f) strength = 1.0f;
-                                shade = 1.0f - strength * ringAlphaProfile(uu) * cover;
+
+                                // 环剖面本身也不能直接采：C 环 0.26 → B 环 0.88 是一条
+                                // 硬跳变（卡西尼缝更是一刀切断），上面的 cover 只负责
+                                // 环带整体的内外缘，管不到带子内部的这些边界。只采一次
+                                // 的话，暗带里面会沿环缝一圈一圈地冒出锯齿。用同样的
+                                // 像素宽度做一次三角滤波：三次采样加权平均，约等于
+                                // 把这个一维函数按一个像素的窗口预滤波。
+                                const float du = feather / (outerR - innerR);
+                                const float ringAlpha = ringAlphaProfile(uu) * 0.5f +
+                                    (ringAlphaProfile(uu - du) + ringAlphaProfile(uu + du)) * 0.25f;
+
+                                // 掠射角处收敛：漫反射项本身已经乘过一次 N·L，
+                                // 这里再照抄一个 N·L 就成了双重计数——亮面中段的暗带
+                                // 会随角度变淡发灰。所以只在快到明暗交界的地方把影子
+                                // 平滑收到 0：那儿直射光本来就快没了，硬切一道影更假。
+                                const float wnx = rot.m[0] * nx + rot.m[1] * ny + rot.m[2] * nz;
+                                const float wny = rot.m[3] * nx + rot.m[4] * ny + rot.m[5] * nz;
+                                const float wnz = rot.m[6] * nx + rot.m[7] * ny + rot.m[8] * nz;
+                                const float facing = smoothstep(0.0f, 0.15f,
+                                                                wnx * sx + wny * sy + wnz * sz);
+
+                                shade = 1.0f - strength * ringAlpha * cover * facing;
                             }
                         }
                     }
